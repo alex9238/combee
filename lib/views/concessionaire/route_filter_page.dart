@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:combeetracking/helper/databaseHelper.dart';
-import 'package:combeetracking/http/http_location.dart';
-import 'package:combeetracking/views/auth/login_page.dart';
-import 'package:combeetracking/views/concessionaire/tracking_map_concessionaire.dart';
-import 'package:combeetracking/views/configuration/configuration_page.dart';
+import 'package:combee/helper/databaseHelper.dart';
+import 'package:combee/http/http_location.dart';
+import 'package:combee/views/auth/login_page.dart';
+import 'package:combee/views/concessionaire/tracking_map_concessionaire.dart';
+import 'package:combee/views/configuration/configuration_page.dart';
 import 'package:select2dot1/select2dot1.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -163,101 +163,101 @@ class _RouteFilterPageState extends State<RouteFilterPage> {
   }*/
 
   void _buscar() async {
-      final data = await DatabaseHelper.instance.getAllUnidadConcesionario();
+    final data = await DatabaseHelper.instance.getAllUnidadConcesionario();
 
-      // Mapeo normal
-      List<Map<String, dynamic>> mapped = data?.map((item) {
-            return {
-              'ruta': item['ruta'] ?? '',
-              'unidad': item['unidad'] ?? '',
-              'municipio': item['municipio'] ?? '',
-              'estado': item['estado'] ?? '',
-              'idestado': item['idestado'],
-              'idmunicipio': item['idmunicipio'],
-            };
-          }).toList() ??
-          [];
+    // Mapeo normal
+    List<Map<String, dynamic>> mapped =
+        data?.map((item) {
+          return {
+            'ruta': item['ruta'] ?? '',
+            'unidad': item['unidad'] ?? '',
+            'municipio': item['municipio'] ?? '',
+            'estado': item['estado'] ?? '',
+            'idestado': item['idestado'],
+            'idmunicipio': item['idmunicipio'],
+          };
+        }).toList() ??
+        [];
 
-      // ---------------------- FILTROS ----------------------
+    // ---------------------- FILTROS ----------------------
 
-      // FILTRO ESTADO
-      if (selectedEstadoId != null) {
-        mapped = mapped
-            .where((e) => e['idestado'] == selectedEstadoId)
-            .toList();
-      }
-
-      // FILTRO MUNICIPIO
-      if (selectedMunicipioId != null) {
-        mapped = mapped
-            .where((e) => e['idmunicipio'] == selectedMunicipioId)
-            .toList();
-      }
-
-      // FILTRO RUTA
-      if (rutaController.text.isNotEmpty) {
-        mapped = mapped
-            .where((e) => e['ruta']
-                .toString()
-                .toLowerCase()
-                .contains(rutaController.text.toLowerCase()))
-            .toList();
-      }
-
-      // FILTRO UNIDAD
-      if (unidadController.text.isNotEmpty) {
-        mapped = mapped
-            .where((e) => e['unidad']
-                .toString()
-                .toLowerCase()
-                .contains(unidadController.text.toLowerCase()))
-            .toList();
-      }
-
-      // Actualizamos
-      setState(() {
-        resultados = mapped;
-      });
+    // FILTRO ESTADO
+    if (selectedEstadoId != null) {
+      mapped = mapped.where((e) => e['idestado'] == selectedEstadoId).toList();
     }
 
-    void _limpiar() {
-      setState(() {
-        // Limpiar campos de texto y variables de selección
-        rutaController.clear();
-        unidadController.clear();
-        selectedEstadoId = null;
-        selectedMunicipioId = null;
+    // FILTRO MUNICIPIO
+    if (selectedMunicipioId != null) {
+      mapped = mapped
+          .where((e) => e['idmunicipio'] == selectedMunicipioId)
+          .toList();
+    }
 
-        // Si ya tenías cargados los "estados" en el controller, 
-        // recreamos el controller con la misma data pero sin selección.
-        if (estadoController != null) {
-          final existingData = estadoController!.data;
-          estadoController = SelectDataController(
-            data: existingData,
-            isMultiSelect: false,
-          );
-        }
-
-        // Reiniciar municipios a vacío y deshabilitado
-        municipioController = SelectDataController(
-          data: [
-            SingleCategoryModel(
-              nameCategory: "Municipios",
-              singleItemCategoryList: [],
+    // FILTRO RUTA
+    if (rutaController.text.isNotEmpty) {
+      mapped = mapped
+          .where(
+            (e) => e['ruta'].toString().toLowerCase().contains(
+              rutaController.text.toLowerCase(),
             ),
-          ],
-          isMultiSelect: false,
-        );
-        municipioEnabled = false;
+          )
+          .toList();
+    }
 
-        // Limpiar resultados (se volverán a poblar en _buscar)
-        resultados.clear();
-      });
+    // FILTRO UNIDAD
+    if (unidadController.text.isNotEmpty) {
+      mapped = mapped
+          .where(
+            (e) => e['unidad'].toString().toLowerCase().contains(
+              unidadController.text.toLowerCase(),
+            ),
+          )
+          .toList();
+    }
 
-      // Volver a cargar la lista completa
-      _buscar();
+    // Actualizamos
+    setState(() {
+      resultados = mapped;
+    });
   }
 
+  void _limpiar() {
+    setState(() {
+      // Limpiar campos de texto y variables de selección
+      rutaController.clear();
+      unidadController.clear();
+      selectedEstadoId = null;
+      selectedMunicipioId = null;
+
+      // Si ya tenías cargados los "estados" en el controller,
+      // recreamos el controller con la misma data pero sin selección.
+      if (estadoController != null) {
+        final existingData = estadoController!.data;
+        estadoController = SelectDataController(
+          data: existingData,
+          isMultiSelect: false,
+        );
+      }
+
+      // Reiniciar municipios a vacío y deshabilitado
+      municipioController = SelectDataController(
+        data: [
+          SingleCategoryModel(
+            nameCategory: "Municipios",
+            singleItemCategoryList: [],
+          ),
+        ],
+        isMultiSelect: false,
+      );
+      municipioEnabled = false;
+
+      // Limpiar resultados (se volverán a poblar en _buscar)
+      resultados.clear();
+    });
+
+    // Volver a cargar la lista completa
+    _buscar();
+  }
 
   void _verMapa() {
     Navigator.pushNamed(context, '/mapa');
@@ -582,21 +582,21 @@ class _RouteFilterPageState extends State<RouteFilterPage> {
                         searchEmptyInfoModalSettings:
                             const SearchEmptyInfoModalSettings(
                               text: "No se encontraron resultados",
-                              textStyle: TextStyle(color: Colors.black)
+                              textStyle: TextStyle(color: Colors.black),
                             ),
                         searchEmptyInfoOverlaySettings:
                             const SearchEmptyInfoOverlaySettings(
                               text: "No se encontraron resultados",
-                              textStyle: TextStyle(color: Colors.black)
+                              textStyle: TextStyle(color: Colors.black),
                             ),
-                        doneButtonModalSettings:
-                            const DoneButtonModalSettings(title: "Aceptar"),
-                        selectEmptyInfoSettings:
-                            const SelectEmptyInfoSettings(
-                              text: "-- Seleccione --",
-                              textStyle: TextStyle(color: Colors.black)
-                            ),
-                        
+                        doneButtonModalSettings: const DoneButtonModalSettings(
+                          title: "Aceptar",
+                        ),
+                        selectEmptyInfoSettings: const SelectEmptyInfoSettings(
+                          text: "-- Seleccione --",
+                          textStyle: TextStyle(color: Colors.black),
+                        ),
+
                         selectDataController: estadoController!,
                         onChanged: (selectedItems) async {
                           final item = selectedItems.isNotEmpty
@@ -635,23 +635,25 @@ class _RouteFilterPageState extends State<RouteFilterPage> {
                               opacity: 0,
                               child: Select2dot1(
                                 searchEmptyInfoModalSettings:
-                              const SearchEmptyInfoModalSettings(
-                                text: "No se encontraron resultados",
-                                textStyle: TextStyle(color: Colors.black)
-                              ),
-                          searchEmptyInfoOverlaySettings:
-                              const SearchEmptyInfoOverlaySettings(
-                                text: "No se encontraron resultados",
-                                textStyle: TextStyle(color: Colors.black)
-                              ),
-                          doneButtonModalSettings:
-                              const DoneButtonModalSettings(title: "Aceptar"),
-                          selectEmptyInfoSettings:
-                              const SelectEmptyInfoSettings(
-                                text: "-- Seleccione --",
-                                textStyle: TextStyle(color: Colors.black)
-                              ),
-                          
+                                    const SearchEmptyInfoModalSettings(
+                                      text: "No se encontraron resultados",
+                                      textStyle: TextStyle(color: Colors.black),
+                                    ),
+                                searchEmptyInfoOverlaySettings:
+                                    const SearchEmptyInfoOverlaySettings(
+                                      text: "No se encontraron resultados",
+                                      textStyle: TextStyle(color: Colors.black),
+                                    ),
+                                doneButtonModalSettings:
+                                    const DoneButtonModalSettings(
+                                      title: "Aceptar",
+                                    ),
+                                selectEmptyInfoSettings:
+                                    const SelectEmptyInfoSettings(
+                                      text: "-- Seleccione --",
+                                      textStyle: TextStyle(color: Colors.black),
+                                    ),
+
                                 selectDataController: SelectDataController(
                                   data: [
                                     SingleCategoryModel(

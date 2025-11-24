@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:combeetracking/views/checker/components/checker_select_form_page.dart';
-import 'package:combeetracking/views/configuration/configuration_page.dart';
+import 'package:combee/views/checker/components/checker_select_form_page.dart';
+import 'package:combee/views/configuration/configuration_page.dart';
 import '../../core/constants/constants.dart';
 
 class CheckerSelectPage extends StatefulWidget {

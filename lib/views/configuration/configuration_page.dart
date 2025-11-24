@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:combeetracking/core/constants/app_users.dart';
-import 'package:combeetracking/views/auth/login_page.dart';
-import 'package:combeetracking/views/configuration/components/configuration_page_form.dart';
-import 'package:combeetracking/views/configuration/components/header_page.dart';
-import 'package:combeetracking/views/home/home_page.dart';
+import 'package:combee/core/constants/app_users.dart';
+import 'package:combee/views/auth/login_page.dart';
+import 'package:combee/views/configuration/components/configuration_page_form.dart';
+import 'package:combee/views/configuration/components/header_page.dart';
+import 'package:combee/views/home/home_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants/constants.dart';
@@ -40,10 +40,7 @@ class _ConfigurationPageState extends State<ConfigurationPage> {
         title: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset(
-              AppImages.logoPantallaAppBar,
-              height: 30,
-            ),
+            Image.asset(AppImages.logoPantallaAppBar, height: 30),
             const SizedBox(width: 8),
             Flexible(
               child: Text(

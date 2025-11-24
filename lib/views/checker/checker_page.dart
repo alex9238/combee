@@ -1,10 +1,10 @@
-import 'package:combeetracking/model/rutaunidaddetalle.dart';
-import 'package:combeetracking/provider/WalkieTalkieProvider.dart';
+import 'package:combee/model/rutaunidaddetalle.dart';
+import 'package:combee/provider/WalkieTalkieProvider.dart';
 import 'package:flutter/material.dart';
-import 'package:combeetracking/http/http_location.dart';
-import 'package:combeetracking/model/rutaunidadchecador.dart';
-import 'package:combeetracking/views/checker/tracking_map_checker.dart';
-import 'package:combeetracking/views/configuration/configuration_page.dart';
+import 'package:combee/http/http_location.dart';
+import 'package:combee/model/rutaunidadchecador.dart';
+import 'package:combee/views/checker/tracking_map_checker.dart';
+import 'package:combee/views/configuration/configuration_page.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';

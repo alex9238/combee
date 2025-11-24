@@ -1,16 +1,16 @@
 import 'dart:io';
 import 'dart:ui';
 
-import 'package:combeetracking/provider/WalkieTalkieProvider.dart';
+import 'package:combee/provider/WalkieTalkieProvider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 //import 'package:flutter_overlay_window/flutter_overlay_window.dart';
-import 'package:combeetracking/service/service_background_location.dart';
-import 'package:combeetracking/views/auth/login_page.dart';
-import 'package:combeetracking/views/splash/splash_page.dart';
-import 'package:combeetracking/views/tracking/overlay_widget.dart';
+import 'package:combee/service/service_background_location.dart';
+import 'package:combee/views/auth/login_page.dart';
+import 'package:combee/views/splash/splash_page.dart';
+import 'package:combee/views/tracking/overlay_widget.dart';
 import 'package:provider/provider.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -58,7 +58,6 @@ void overlayMain() async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
 
   /*final config = RequestConfiguration(
     testDeviceIds: ["9F9D8B4244C864C5E5C8FFDC39753CBB"],

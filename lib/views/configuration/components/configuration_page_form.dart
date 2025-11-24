@@ -1,14 +1,14 @@
-import 'package:combeetracking/views/home/components/hex_button.dart';
+import 'package:combee/views/home/components/hex_button.dart';
 import 'package:flutter/material.dart';
-import 'package:combeetracking/core/themes/app_themes.dart';
+import 'package:combee/core/themes/app_themes.dart';
 
 import 'dart:convert';
 import 'package:geolocator/geolocator.dart';
-import 'package:combeetracking/helper/databaseHelper.dart';
-import 'package:combeetracking/http/http_location.dart';
-import 'package:combeetracking/views/checker/checker_page.dart';
-import 'package:combeetracking/views/checker/checker_select_page.dart';
-import 'package:combeetracking/views/tracking/tracking_page.dart';
+import 'package:combee/helper/databaseHelper.dart';
+import 'package:combee/http/http_location.dart';
+import 'package:combee/views/checker/checker_page.dart';
+import 'package:combee/views/checker/checker_select_page.dart';
+import 'package:combee/views/tracking/tracking_page.dart';
 import 'package:select2dot1/select2dot1.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -76,8 +76,6 @@ class _ConfigurationPageFormState extends State<ConfigurationPageForm> {
   }
 
   Future<void> _initLocationFlow() async {
-
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       widget.onLogin(true);
     });
@@ -132,11 +130,9 @@ class _ConfigurationPageFormState extends State<ConfigurationPageForm> {
 
     setState(() => cargando = false);
 
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       widget.onLogin(false);
     });
-    
   }
 
   Future<bool> _checkChecador() async {
@@ -436,21 +432,21 @@ class _ConfigurationPageFormState extends State<ConfigurationPageForm> {
                           searchEmptyInfoModalSettings:
                               const SearchEmptyInfoModalSettings(
                                 text: "No se encontraron resultados",
-                                textStyle: TextStyle(color: Colors.black)
+                                textStyle: TextStyle(color: Colors.black),
                               ),
                           searchEmptyInfoOverlaySettings:
                               const SearchEmptyInfoOverlaySettings(
                                 text: "No se encontraron resultados",
-                                textStyle: TextStyle(color: Colors.black)
+                                textStyle: TextStyle(color: Colors.black),
                               ),
                           doneButtonModalSettings:
                               const DoneButtonModalSettings(title: "Aceptar"),
                           selectEmptyInfoSettings:
                               const SelectEmptyInfoSettings(
                                 text: "-- Seleccione --",
-                                textStyle: TextStyle(color: Colors.black)
+                                textStyle: TextStyle(color: Colors.black),
                               ),
-                          
+
                           selectDataController: estadoController!,
 
                           onChanged: (selectedItems) async {
@@ -485,23 +481,25 @@ class _ConfigurationPageFormState extends State<ConfigurationPageForm> {
                             opacity: municipioEnabled ? 1.0 : 0.5,
                             child: Select2dot1(
                               searchEmptyInfoModalSettings:
-                              const SearchEmptyInfoModalSettings(
-                                text: "No se encontraron resultados",
-                                textStyle: TextStyle(color: Colors.black)
-                              ),
-                          searchEmptyInfoOverlaySettings:
-                              const SearchEmptyInfoOverlaySettings(
-                                text: "No se encontraron resultados",
-                                textStyle: TextStyle(color: Colors.black)
-                              ),
-                          doneButtonModalSettings:
-                              const DoneButtonModalSettings(title: "Aceptar"),
-                          selectEmptyInfoSettings:
-                              const SelectEmptyInfoSettings(
-                                text: "-- Seleccione --",
-                                textStyle: TextStyle(color: Colors.black)
-                              ),
-                          
+                                  const SearchEmptyInfoModalSettings(
+                                    text: "No se encontraron resultados",
+                                    textStyle: TextStyle(color: Colors.black),
+                                  ),
+                              searchEmptyInfoOverlaySettings:
+                                  const SearchEmptyInfoOverlaySettings(
+                                    text: "No se encontraron resultados",
+                                    textStyle: TextStyle(color: Colors.black),
+                                  ),
+                              doneButtonModalSettings:
+                                  const DoneButtonModalSettings(
+                                    title: "Aceptar",
+                                  ),
+                              selectEmptyInfoSettings:
+                                  const SelectEmptyInfoSettings(
+                                    text: "-- Seleccione --",
+                                    textStyle: TextStyle(color: Colors.black),
+                                  ),
+
                               selectDataController: municipioController!,
                               onChanged: (selectedItems) {
                                 final item = selectedItems.isNotEmpty
@@ -671,7 +669,7 @@ class _ConfigurationPageFormState extends State<ConfigurationPageForm> {
                         textColor: Colors.black,
                         heightButton: 55,
                         widthButton: 200,
-              
+
                         colors: const [AppColors.primary, AppColors.primary],
                         onTap: _validarFormulario,
                       ),

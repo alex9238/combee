@@ -6,8 +6,8 @@ import 'package:geolocator/geolocator.dart';
 //import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:combeetracking/http/http_location.dart';
-import 'package:combeetracking/main.dart';
+import 'package:combee/http/http_location.dart';
+import 'package:combee/main.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
@@ -44,7 +44,7 @@ class _TrackingPageState extends State<TrackingPage>
   @override
   void initState() {
     super.initState();
-    
+
     WidgetsBinding.instance.addObserver(this);
     WakelockPlus.enable();
     //_loadBanner();
@@ -192,7 +192,6 @@ class _TrackingPageState extends State<TrackingPage>
       }
 
       if (permission == LocationPermission.always) {
-
         _startRealTimeTracking();
 
         /*await _requestNotificationPermission();
@@ -247,10 +246,10 @@ class _TrackingPageState extends State<TrackingPage>
         Geolocator.openAppSettings();
       }
     } else if (permission == LocationPermission.always) {
-        _startRealTimeTracking();
-        //await _requestNotificationPermission();
+      _startRealTimeTracking();
+      //await _requestNotificationPermission();
 
-        /*if(_statusNotification){
+      /*if(_statusNotification){
           _startRealTimeTracking();
         }
         else{
@@ -488,7 +487,6 @@ class _TrackingPageState extends State<TrackingPage>
     return Scaffold(
       appBar: AppBar(
         title: Row(
-          
           mainAxisSize: MainAxisSize.min, // evita que ocupe todo el ancho
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -513,7 +511,6 @@ class _TrackingPageState extends State<TrackingPage>
           onPressed: () {
             // Preguntar si quiere detener el rastreo antes de salir
             if (_isTracking) {
-              
               _stopTracking();
               Navigator.pushReplacement(
                 context,
@@ -666,9 +663,7 @@ class _TrackingPageState extends State<TrackingPage>
                             },
                           ),
 
-                   
                     const SizedBox(height: 10),
-                   
                   ],
                 ),
               ),
@@ -754,8 +749,6 @@ class _TrackingPageState extends State<TrackingPage>
             ),
 
             const SizedBox(height: 15),
-
-          
           ],
         ),
       ),

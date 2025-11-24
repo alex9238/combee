@@ -1,11 +1,11 @@
 import 'dart:io';
 
-import 'package:combeetracking/views/home/components/hex_button.dart';
+import 'package:combee/views/home/components/hex_button.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'package:combeetracking/views/auth/login_page.dart';
-import 'package:combeetracking/views/configuration/configuration_page.dart';
-import 'package:combeetracking/views/tracking/tracking_page.dart';
+import 'package:combee/views/auth/login_page.dart';
+import 'package:combee/views/configuration/configuration_page.dart';
+import 'package:combee/views/tracking/tracking_page.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -192,7 +192,6 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             ),*/
-
             const SizedBox(height: 15),
             HexButton(
               text: 'INICIAR RASTREO',
@@ -239,7 +238,6 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             ),*/
-
             const SizedBox(height: 20),
 
             // Información de características

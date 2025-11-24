@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:combeetracking/core/constants/constants.dart';
+import 'package:combee/core/constants/constants.dart';
 import 'dart:async';
 
-import 'package:combeetracking/views/auth/login_page.dart';
+import 'package:combee/views/auth/login_page.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});

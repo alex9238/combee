@@ -1,14 +1,14 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:combeetracking/provider/WalkieTalkieProvider.dart';
+import 'package:combee/provider/WalkieTalkieProvider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:geolocator/geolocator.dart';
 //import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:combeetracking/http/http_location.dart';
-import 'package:combeetracking/main.dart';
+import 'package:combee/http/http_location.dart';
+import 'package:combee/main.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';

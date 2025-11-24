@@ -6,8 +6,8 @@ import 'package:geolocator/geolocator.dart';
 //import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:combeetracking/http/http_location.dart';
-import 'package:combeetracking/main.dart';
+import 'package:combee/http/http_location.dart';
+import 'package:combee/main.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
@@ -541,7 +541,6 @@ class _TrackingPageState extends State<TrackingPage>
     return Scaffold(
       appBar: AppBar(
         title: Row(
-          
           mainAxisSize: MainAxisSize.min, // evita que ocupe todo el ancho
           mainAxisAlignment: MainAxisAlignment.center,
           children: [

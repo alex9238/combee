@@ -1,8 +1,8 @@
-import 'package:combeetracking/views/home/components/hex_button.dart';
+import 'package:combee/views/home/components/hex_button.dart';
 import 'package:flutter/material.dart';
-import 'package:combeetracking/core/themes/app_themes.dart';
-import 'package:combeetracking/http/http_location.dart';
-import 'package:combeetracking/views/checker/checker_page.dart';
+import 'package:combee/core/themes/app_themes.dart';
+import 'package:combee/http/http_location.dart';
+import 'package:combee/views/checker/checker_page.dart';
 import 'package:select2dot1/select2dot1.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -215,19 +215,19 @@ class _CheckerSelectFormState extends State<CheckerSelectFormPage> {
                           searchEmptyInfoModalSettings:
                               const SearchEmptyInfoModalSettings(
                                 text: "No se encontraron resultados",
-                                textStyle: TextStyle(color: Colors.black)
+                                textStyle: TextStyle(color: Colors.black),
                               ),
                           searchEmptyInfoOverlaySettings:
                               const SearchEmptyInfoOverlaySettings(
                                 text: "No se encontraron resultados",
-                                textStyle: TextStyle(color: Colors.black)
+                                textStyle: TextStyle(color: Colors.black),
                               ),
                           doneButtonModalSettings:
                               const DoneButtonModalSettings(title: "Aceptar"),
                           selectEmptyInfoSettings:
                               const SelectEmptyInfoSettings(
                                 text: "-- Seleccione --",
-                                textStyle: TextStyle(color: Colors.black)
+                                textStyle: TextStyle(color: Colors.black),
                               ),
                           selectDataController: paradaController!,
                           onChanged: (selectedItems) async {
@@ -245,7 +245,7 @@ class _CheckerSelectFormState extends State<CheckerSelectFormPage> {
                           },
                           pillboxTitleSettings: const PillboxTitleSettings(
                             title: "Selecciona una parada",
-                            titleStyleDefault: TextStyle(color: Colors.black)
+                            titleStyleDefault: TextStyle(color: Colors.black),
                           ),
                         ),
 
@@ -255,11 +255,10 @@ class _CheckerSelectFormState extends State<CheckerSelectFormPage> {
                         textColor: Colors.black,
                         heightButton: 55,
                         widthButton: 200,
-              
+
                         colors: const [AppColors.primary, AppColors.primary],
                         onTap: _validarFormulario,
                       ),
-
 
                       //const SizedBox(height: 24),
                       /*ElevatedButton.icon(

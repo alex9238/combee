@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:combeetracking/views/concessionaire/route_filter_page.dart';
-import 'package:combeetracking/views/configuration/configuration_page.dart';
-import 'package:combeetracking/views/home/home_page.dart';
+import 'package:combee/views/concessionaire/route_filter_page.dart';
+import 'package:combee/views/configuration/configuration_page.dart';
+import 'package:combee/views/home/home_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -36,7 +36,7 @@ class _LoginPageState extends State<LoginPage> {
       print("✅ 'isLogin' existe. Valor: $value");
 
       if (value == "true") {
-        final value = await  prefs.getString("tipo");
+        final value = await prefs.getString("tipo");
 
         print("✅ 'tipo' existe. Valor: $value");
 
@@ -196,7 +196,6 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
 
-                        
                         const SizedBox(height: 5),
 
                         GestureDetector(
@@ -212,7 +211,6 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
 
-                        
                         const SizedBox(height: 20),
 
                         // Políticas de Privacidad SIN CARD
