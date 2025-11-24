@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui';
 
+import 'package:combee/helper/databaseHelper.dart';
 import 'package:combee/http/http_location.dart';
 import 'package:combee/model/rutachecador.dart';
 import 'package:combee/model/trackingrutaunidad.dart';
@@ -10,6 +12,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import 'package:combee/views/configuration/configuration_page.dart';
+import 'package:select2dot1/select2dot1.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -56,13 +59,180 @@ class _HomePageState extends State<HomePage> {
 
   List<RutaChecador> paradaVirtual = [];
 
+  SelectDataController? estadoController;
+  SelectDataController? municipioController;
+
+  bool loadingEstados = true;
+  bool loadingMunicipios = false;
+  bool municipioEnabled = false;
+
+  int? selectedEstadoId;
+  String? selectedEstadoName;
+
+  int? selectedMunicipioId;
+  String? selectedMunicipioName;
+
+  final _formKey = GlobalKey<FormState>();
+
+  int? idEstado;
+  int? idMunicipio;
+  bool cargando = true;
+
   @override
   void initState() {
     super.initState();
 
-    _buscar();
-    _iniciarActualizacionPeriodica();
+    //_buscar();
+    //_iniciarActualizacionPeriodica();
     _iniciarUbicacion();
+    _initLocationFlow();
+  }
+
+  Future<void> _initLocationFlow() async {
+    /*WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.onLogin(true);
+    });*/
+
+    final last = await DatabaseHelper.instance.getLastLocation();
+
+    if (last != null) {
+      idEstado = last['idestado'];
+      idMunicipio = last['idmunicipio'];
+      selectedEstadoName = last['estado'];
+      selectedMunicipioName = last['municipio'];
+    } else {
+      bool permiso = await _checkPermission();
+
+      if (permiso) {
+        Position pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+        );
+
+        final response = await api.getDataLocation(pos.latitude, pos.longitude);
+        if (response.message == 1 && response.data != null) {
+          idEstado = response.data!.idestado;
+          idMunicipio = response.data!.idmunicipio;
+          selectedEstadoName = response.data!.estado;
+          selectedMunicipioName = response.data!.municipio;
+
+          await DatabaseHelper.instance.insertLocation(
+            idestado: idEstado!,
+            estado: selectedEstadoName!,
+            idmunicipio: idMunicipio!,
+            municipio: selectedMunicipioName!,
+          );
+        }
+      }
+    }
+
+    // Siempre cargamos estados desde la API
+    await _loadEstados();
+
+    // Luego, si tenemos un idEstado, cargamos municipios
+    if (idEstado != null) {
+      await _loadMunicipios(idEstado!);
+    }
+
+    setState(() => cargando = false);
+
+    /*WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.onLogin(false);
+    });*/
+  }
+
+  /// Carga todos los estados desde API
+  Future<void> _loadEstados() async {
+    final estados = await api.getState();
+
+    final items = estados
+        .map(
+          (e) => SingleItemCategoryModel(
+            nameSingleItem: e.estado ?? '',
+            value: e.idestado.toString(),
+          ),
+        )
+        .toList();
+
+    // Si ya tenemos un idEstado detectado, lo preseleccionamos
+    SingleItemCategoryModel? selectedEstadoItem;
+    if (idEstado != null) {
+      selectedEstadoItem = items.firstWhere(
+        (item) => item.value == idEstado.toString(),
+        orElse: () => items.first,
+      );
+      selectedEstadoId = int.tryParse(selectedEstadoItem.value);
+    }
+
+    estadoController = SelectDataController(
+      data: [
+        SingleCategoryModel(
+          nameCategory: "Estados",
+          singleItemCategoryList: items,
+        ),
+      ],
+      isMultiSelect: false,
+      initSelected: selectedEstadoItem != null ? [selectedEstadoItem] : null,
+    );
+
+    setState(() {
+      loadingEstados = false;
+    });
+  }
+
+  /// Carga municipios del estado seleccionado
+  Future<void> _loadMunicipios(int idEstado) async {
+    setState(() {
+      loadingMunicipios = true;
+      municipioEnabled = false;
+    });
+
+    final municipios = await api.getMunicipality(idEstado);
+
+    final items = municipios
+        .map(
+          (m) => SingleItemCategoryModel(
+            nameSingleItem: m.municipio ?? '',
+            value: m.idmunicipio.toString(),
+          ),
+        )
+        .toList();
+
+    // Si ya tenemos un idMunicipio detectado, lo preseleccionamos
+    SingleItemCategoryModel? selectedMunicipioItem;
+    if (idMunicipio != null) {
+      selectedMunicipioItem = items.firstWhere(
+        (item) => item.value == idMunicipio.toString(),
+        orElse: () => items.first,
+      );
+      selectedMunicipioId = int.tryParse(selectedMunicipioItem.value);
+    }
+
+    municipioController = SelectDataController(
+      data: [
+        SingleCategoryModel(
+          nameCategory: "Municipios",
+          singleItemCategoryList: items,
+        ),
+      ],
+      isMultiSelect: false,
+      initSelected: selectedMunicipioItem != null
+          ? [selectedMunicipioItem]
+          : null,
+    );
+
+    setState(() {
+      loadingMunicipios = false;
+      municipioEnabled = true;
+    });
+  }
+
+  Future<bool> _checkPermission() async {
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    return permission == LocationPermission.always ||
+        permission == LocationPermission.whileInUse;
   }
 
   @override
@@ -272,10 +442,7 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // 🚍 Marcadores de unidades
-
+  Widget _buildMapa() {
     final markers = ubicaciones
         .where(
           (unidad) =>
@@ -327,107 +494,439 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Combee',
-          style: TextStyle(color: AppColors.greyTitle),
-        ),
-        backgroundColor: AppColors.primary,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.greyTitle),
-          onPressed: () async {},
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.layers, color: AppColors.greyTitle),
-            onPressed: _mostrarSeleccionRutas,
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh, color: AppColors.greyTitle),
-            onPressed: _buscar,
-          ),
-        ],
+    return FlutterMap(
+      mapController: _mapController,
+      options: MapOptions(
+        initialCenter: const LatLng(19.4326, -99.1332),
+        initialZoom: 10,
       ),
-      body: FlutterMap(
-        mapController: _mapController,
-        options: MapOptions(
-          initialCenter: const LatLng(19.4326, -99.1332), // CDMX
-          initialZoom: 10,
-        ),
-        children: [
-          TileLayer(urlTemplate: layer1, userAgentPackageName: 'com.combee.mx'),
+      children: [
+        TileLayer(urlTemplate: layer1, userAgentPackageName: 'com.combee.mx'),
 
-          ..._wmsLayers
-              .where((layerName) => _wmsSeleccionadas[layerName] ?? false)
-              .map(
-                (layerName) => TileLayer(
-                  wmsOptions: WMSTileLayerOptions(
-                    baseUrl:
-                        'https://mapas.siese.chiapas.gob.mx/geoserver/transporte/wms?',
-                    layers: [layerName],
-                    format: 'image/png',
-                    transparent: true,
-                    version: '1.3.0',
-                    crs: const Epsg3857(),
+        ..._wmsLayers
+            .where((layerName) => _wmsSeleccionadas[layerName] ?? false)
+            .map(
+              (layerName) => TileLayer(
+                wmsOptions: WMSTileLayerOptions(
+                  baseUrl:
+                      'https://mapas.siese.chiapas.gob.mx/geoserver/transporte/wms?',
+                  layers: [layerName],
+                  format: 'image/png',
+                  transparent: true,
+                  version: '1.3.0',
+                  crs: const Epsg3857(),
+                ),
+                tileBuilder: (context, widget, tile) {
+                  final color = _wmsColores[layerName] ?? Colors.transparent;
+                  return ColorFiltered(
+                    colorFilter: ColorFilter.mode(
+                      color.withOpacity(1),
+                      BlendMode.srcATop,
+                    ),
+                    child: widget,
+                  );
+                },
+              ),
+            ),
+
+        MarkerClusterLayerWidget(
+          options: MarkerClusterLayerOptions(
+            maxClusterRadius: 45,
+            size: const Size(40, 40),
+            markers: allMarkers,
+            zoomToBoundsOnClick: true,
+            centerMarkerOnClick: true,
+            builder: (context, clusterMarkers) {
+              return Container(
+                decoration: BoxDecoration(
+                  color: Colors.blueAccent,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Center(
+                  child: Text(
+                    clusterMarkers.length.toString(),
+                    style: const TextStyle(color: Colors.white),
                   ),
-                  // Color semitransparente por capa (para distinguir)
-                  tileBuilder: (context, widget, tile) {
-                    final color = _wmsColores[layerName] ?? Colors.transparent;
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
 
-                    return ColorFiltered(
-                      colorFilter: ColorFilter.mode(
-                        color.withOpacity(1),
-                        BlendMode.srcATop,
-                      ),
-                      child: widget,
-                    );
-                  },
+  Widget _buildDrawer(BuildContext context) {
+    return Drawer(
+      backgroundColor: AppColors.primary,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ===== HEADER =====
+            /*DrawerHeader(
+              decoration: BoxDecoration(color: AppColors.primary),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.directions_bus,
+                    size: 48,
+                    color: AppColors.greyTitle,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    "Combee",
+                    style: TextStyle(
+                      fontSize: 24,
+                      color: AppColors.greyTitle,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),*/
+
+            // ===== OPCIONES =====
+            ListTile(
+              leading: const Icon(Icons.map, color: Colors.black87),
+              title: const Text("Políticas de privacidad"),
+              onTap: () => Navigator.pop(context),
+            ),
+
+            ListTile(
+              leading: const Icon(Icons.route, color: Colors.black87),
+              title: const Text("Denuncias"),
+              onTap: () => Navigator.pop(context),
+            ),
+
+            ListTile(
+              leading: const Icon(Icons.settings, color: Colors.black87),
+              title: const Text("Configuración"),
+              onTap: () => Navigator.pop(context),
+            ),
+
+            const Spacer(),
+
+            /*ListTile(
+              leading: const Icon(Icons.logout, color: Colors.red),
+              title: const Text(
+                "Cerrar sesión",
+                style: TextStyle(color: Colors.red),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                // lógica de logout
+              },
+            ),
+            const SizedBox(height: 10),*/
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFormRuta() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (loadingEstados || estadoController == null)
+              const Center(child: CircularProgressIndicator())
+            else
+              Select2dot1(
+                searchEmptyInfoModalSettings:
+                    const SearchEmptyInfoModalSettings(
+                      text: "No se encontraron resultados",
+                      textStyle: TextStyle(color: Colors.black),
+                    ),
+                searchEmptyInfoOverlaySettings:
+                    const SearchEmptyInfoOverlaySettings(
+                      text: "No se encontraron resultados",
+                      textStyle: TextStyle(color: Colors.black),
+                    ),
+                doneButtonModalSettings: const DoneButtonModalSettings(
+                  title: "Aceptar",
+                ),
+                selectEmptyInfoSettings: const SelectEmptyInfoSettings(
+                  text: "-- Seleccione --",
+                  textStyle: TextStyle(color: Colors.black),
+                ),
+
+                selectDataController: estadoController!,
+
+                onChanged: (selectedItems) async {
+                  final item = selectedItems.isNotEmpty
+                      ? selectedItems.first
+                      : null;
+                  final id = int.tryParse(item?.value ?? "");
+                  final selectEstadoName = item?.nameSingleItem;
+
+                  if (id != null) {
+                    selectedEstadoId = id;
+                    idEstado = selectedEstadoId;
+                    selectedEstadoName = selectEstadoName;
+                    idMunicipio = null;
+                    await _loadMunicipios(id);
+                  }
+                },
+                pillboxTitleSettings: const PillboxTitleSettings(
+                  title: "Selecciona un estado",
+                  titleStyleDefault: TextStyle(color: Colors.black),
                 ),
               ),
 
-          MarkerClusterLayerWidget(
-            options: MarkerClusterLayerOptions(
-              maxClusterRadius: 45,
-              size: const Size(40, 40),
-              markers: allMarkers,
-              zoomToBoundsOnClick: true,
-              centerMarkerOnClick: true,
-              builder: (context, clusterMarkers) {
-                return Container(
-                  decoration: BoxDecoration(
-                    color: Colors.blueAccent,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Center(
-                    child: Text(
-                      clusterMarkers.length.toString(),
-                      style: const TextStyle(color: Colors.white),
+            const SizedBox(height: 10),
+
+            // ----------- SELECT MUNICIPIO -----------
+            if (loadingMunicipios || municipioController == null)
+              const Center(child: CircularProgressIndicator())
+            else
+              IgnorePointer(
+                ignoring: !municipioEnabled,
+                child: Opacity(
+                  opacity: municipioEnabled ? 1.0 : 0.5,
+                  child: Select2dot1(
+                    searchEmptyInfoModalSettings:
+                        const SearchEmptyInfoModalSettings(
+                          text: "No se encontraron resultados",
+                          textStyle: TextStyle(color: Colors.black),
+                        ),
+                    searchEmptyInfoOverlaySettings:
+                        const SearchEmptyInfoOverlaySettings(
+                          text: "No se encontraron resultados",
+                          textStyle: TextStyle(color: Colors.black),
+                        ),
+                    doneButtonModalSettings: const DoneButtonModalSettings(
+                      title: "Aceptar",
+                    ),
+                    selectEmptyInfoSettings: const SelectEmptyInfoSettings(
+                      text: "-- Seleccione --",
+                      textStyle: TextStyle(color: Colors.black),
+                    ),
+
+                    selectDataController: municipioController!,
+                    onChanged: (selectedItems) {
+                      final item = selectedItems.isNotEmpty
+                          ? selectedItems.first
+                          : null;
+                      selectedMunicipioId = int.tryParse(item?.value ?? '');
+
+                      idMunicipio = selectedMunicipioId;
+
+                      selectedMunicipioName = item?.nameSingleItem;
+                    },
+                    pillboxTitleSettings: const PillboxTitleSettings(
+                      title: "Selecciona un municipio",
+                      titleStyleDefault: TextStyle(color: Colors.black),
                     ),
                   ),
-                );
-              },
+                ),
+              ),
+
+            const SizedBox(height: 10),
+            // ----------- SELECT MUNICIPIO -----------
+            if (loadingMunicipios || municipioController == null)
+              const Center(child: CircularProgressIndicator())
+            else
+              IgnorePointer(
+                ignoring: !municipioEnabled,
+                child: Opacity(
+                  opacity: municipioEnabled ? 1.0 : 0.5,
+                  child: Select2dot1(
+                    searchEmptyInfoModalSettings:
+                        const SearchEmptyInfoModalSettings(
+                          text: "No se encontraron resultados",
+                          textStyle: TextStyle(color: Colors.black),
+                        ),
+                    searchEmptyInfoOverlaySettings:
+                        const SearchEmptyInfoOverlaySettings(
+                          text: "No se encontraron resultados",
+                          textStyle: TextStyle(color: Colors.black),
+                        ),
+                    doneButtonModalSettings: const DoneButtonModalSettings(
+                      title: "Aceptar",
+                    ),
+                    selectEmptyInfoSettings: const SelectEmptyInfoSettings(
+                      text: "-- Seleccione --",
+                      textStyle: TextStyle(color: Colors.black),
+                    ),
+
+                    selectDataController: municipioController!,
+                    onChanged: (selectedItems) {
+                      final item = selectedItems.isNotEmpty
+                          ? selectedItems.first
+                          : null;
+                      selectedMunicipioId = int.tryParse(item?.value ?? '');
+
+                      idMunicipio = selectedMunicipioId;
+
+                      selectedMunicipioName = item?.nameSingleItem;
+                    },
+                    pillboxTitleSettings: const PillboxTitleSettings(
+                      title: "Selecciona una ruta",
+                      titleStyleDefault: TextStyle(color: Colors.black),
+                    ),
+                  ),
+                ),
+              ),
+
+            const SizedBox(height: 30),
+
+            HexButton(
+              text: 'Buscar',
+              textColor: Colors.black,
+              heightButton: 20,
+              widthButton: 200,
+              colors: const [AppColors.primary, AppColors.primary],
+              onTap: () {}, // _validarFormulario,
             ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.primary,
-        icon: const Icon(Icons.my_location, color: AppColors.greyTitle),
-        label: const Text(
-          'Mi ubicación',
-          style: TextStyle(color: AppColors.greyTitle),
+          ],
         ),
-        onPressed: () {
-          if (_miUbicacion != null) {
-            _mapController.move(_miUbicacion!, 16);
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Ubicación no disponible')),
-            );
-          }
-        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        drawer: _buildDrawer(context),
+
+        body: Stack(
+          children: [
+            /// MAPA A PANTALLA COMPLETA
+            Positioned.fill(child: _buildMapa()),
+
+            /// CARD FLOTANTE CON BLUR + CONTENIDO COMPLETO
+            Positioned(
+              top: 30,
+              left: 15,
+              right: 15,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                  child: Card(
+                    elevation: 6,
+                    color: AppColors.primary, //.withOpacity(0.7),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+
+                    /// IMPORTANTE: Card contiene header + tabs + contenido
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // ====== HEADER ======
+                        SizedBox(
+                          height: 40,
+                          child: Row(
+                            children: [
+                              Builder(
+                                builder: (context) {
+                                  return IconButton(
+                                    icon: const Icon(
+                                      Icons.menu,
+                                      color: AppColors.greyTitle,
+                                    ),
+                                    onPressed: () {
+                                      Scaffold.of(context).openDrawer();
+                                    },
+                                  );
+                                },
+                              ),
+
+                              Expanded(
+                                child: Center(
+                                  child: Text(
+                                    'Combee',
+                                    style: const TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.greyTitle,
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.layers,
+                                  color: AppColors.greyTitle,
+                                ),
+                                onPressed: _mostrarSeleccionRutas,
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // ====== TAB BAR ======
+                        const TabBar(
+                          labelColor: Colors.black,
+                          unselectedLabelColor: Colors.grey,
+                          tabs: [
+                            Tab(text: "Rutas"),
+                            Tab(text: "Búsqueda por puntos"),
+                          ],
+                        ),
+
+                        // ====== TAB CONTENT DENTRO DEL CARD ======
+                        SizedBox(
+                          height: 350, // puedes ajustar altura
+                          child: TabBarView(
+                            children: [
+                              // TAB 1
+                              _buildFormRuta(),
+
+                              // TAB 2
+                              Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.9),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: const Center(
+                                    child: Text(
+                                      "Contenido de búsqueda por puntos",
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        floatingActionButton: FloatingActionButton.extended(
+          backgroundColor: AppColors.primary,
+          icon: const Icon(Icons.my_location, color: AppColors.greyTitle),
+          label: const Text(
+            'Mi ubicación',
+            style: TextStyle(color: AppColors.greyTitle),
+          ),
+          onPressed: () {
+            if (_miUbicacion != null) {
+              _mapController.move(_miUbicacion!, 16);
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Ubicación no disponible')),
+              );
+            }
+          },
+        ),
       ),
     );
   }

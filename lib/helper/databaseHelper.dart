@@ -30,6 +30,19 @@ class DatabaseHelper {
         estado TEXT,
         idmunicipio int,
         municipio TEXT,
+        dateRecord DATETIME
+        
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE rutas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        idestado int,
+        estado TEXT,
+        idmunicipio int,
+        municipio TEXT,
+        idruta INT,
         ruta TEXT,
         dateRecord DATETIME
         
@@ -51,15 +64,13 @@ class DatabaseHelper {
     required String estado,
     required int idmunicipio,
     required String municipio,
-    required int idruta,
-    required String ruta,
   }) async {
     final db = await instance.database;
 
     final existing = await db.query(
       'location',
-      where: 'idestado = ? and idmunicipio=? and ruta=? and idruta=? ',
-      whereArgs: [idestado, idmunicipio, ruta, idruta],
+      where: 'idestado = ? and idmunicipio=?  ',
+      whereArgs: [idestado, idmunicipio],
     );
 
     if (existing.isEmpty) {
@@ -68,16 +79,14 @@ class DatabaseHelper {
         'estado': estado,
         'idmunicipio': idmunicipio,
         'municipio': municipio,
-        'idruta': idruta,
-        'ruta': ruta,
         'dateRecord': DateTime.now().toIso8601String(),
       });
     } else {
       await db.update(
         'location',
         {'dateRecord': DateTime.now().toIso8601String()},
-        where: 'idestado = ? and idmunicipio=? and ruta=? ',
-        whereArgs: [idestado, idmunicipio, ruta],
+        where: 'idestado = ? and idmunicipio=?  ',
+        whereArgs: [idestado, idmunicipio],
       );
     }
   }
@@ -93,14 +102,70 @@ class DatabaseHelper {
     return null;
   }
 
+  /*
+      PROCESO PARA RUTAS 
+  */
+
+  Future<void> clearRutas() async {
+    final db = await instance.database;
+    await db.delete('rutas');
+  }
+
+  Future<void> insertRutas({
+    required int idestado,
+    required String estado,
+    required int idmunicipio,
+    required String municipio,
+    required int idruta,
+    required String ruta,
+  }) async {
+    final db = await instance.database;
+
+    final existing = await db.query(
+      'location',
+      where: 'idestado = ? and idmunicipio=? and ruta=? and idruta=? ',
+      whereArgs: [idestado, idmunicipio, ruta, idruta],
+    );
+
+    if (existing.isEmpty) {
+      await db.insert('rutas', {
+        'idestado': idestado,
+        'estado': estado,
+        'idmunicipio': idmunicipio,
+        'municipio': municipio,
+        'idruta': idruta,
+        'ruta': ruta,
+        'dateRecord': DateTime.now().toIso8601String(),
+      });
+    } else {
+      await db.update(
+        'location',
+        {'dateRecord': DateTime.now().toIso8601String()},
+        where: 'idestado = ? and idmunicipio=? and ruta=? and idruta=?  ',
+        whereArgs: [idestado, idmunicipio, ruta, idruta],
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>?> getLastRuta() async {
+    final db = await instance.database;
+    final result = await db.query(
+      'rutas',
+      orderBy: 'dateRecord DESC',
+      limit: 1,
+    );
+    if (result.isNotEmpty) return result.first;
+    return null;
+  }
+
   Future<List<Map<String, dynamic>>> getRutasSaveInDatabase({
     required int estado,
     required int municipio,
   }) async {
     final db = await instance.database;
     final result = await db.query(
-      'location',
-      columns: ['ruta'],
+      'rutas',
+      columns: ['ruta', 'idestado', 'idmunicipio'],
       where: 'idestado = ? and idmunicipio=? ',
       whereArgs: [estado, municipio],
       distinct: true,
