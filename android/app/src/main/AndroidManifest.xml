@@ -1,14 +1,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET"/>
-    <uses-permission android:name="android.permission.CAMERA"/>
+    <!--<uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />-->
 
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    
 
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!--<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
@@ -20,7 +24,7 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
      <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />-->
     
     
 
@@ -53,21 +57,21 @@
             </intent-filter>
         </activity>
 
-        <activity
+        <!--<activity
             android:name="com.flutter.overlay.window.OverlayActivity"
             android:theme="@style/OverlayTheme"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
             android:excludeFromRecents="true"
-            android:enabled="true" />
+            android:enabled="true" />-->
 
-        <service android:name="flutter.overlay.window.flutter_overlay_window.OverlayService" 
+        <!--<service android:name="flutter.overlay.window.flutter_overlay_window.OverlayService" 
             android:exported="false"
             android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="explanation_for_special_use"/>
-        </service>
+        </service>-->
 
         <!--<service
             android:name="id.flutter.flutter_background_service.BackgroundService"
@@ -87,10 +91,10 @@
 
 
         
-        <service
+        <!--<service
              android:name="id.flutter.flutter_background_service.BackgroundService"
              android:enabled="true"
-             android:foregroundServiceType="location|dataSync|mediaPlayback" />
+             android:foregroundServiceType="location|dataSync|mediaPlayback" />-->
 
         <!-- Las declaraciones de servicios comentadas son plugins que no estás usando, 
              es bueno mantenerlas comentadas para evitar conflictos. -->

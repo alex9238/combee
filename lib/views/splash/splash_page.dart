@@ -1,8 +1,7 @@
+import 'package:combee/views/home/home_page.dart';
 import 'package:flutter/material.dart';
 import 'package:combee/core/constants/constants.dart';
 import 'dart:async';
-
-import 'package:combee/views/auth/login_page.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -19,7 +18,7 @@ class _SplashScreenState extends State<SplashScreen> {
     Timer(const Duration(seconds: 2), () {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const LoginPage()),
+        MaterialPageRoute(builder: (context) => const HomePage()),
       );
     });
   }

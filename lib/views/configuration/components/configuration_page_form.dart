@@ -1,4 +1,4 @@
-import 'package:combee/views/home/components/hex_button.dart';
+/*import 'package:combee/views/home/components/hex_button.dart';
 import 'package:flutter/material.dart';
 import 'package:combee/core/themes/app_themes.dart';
 
@@ -6,7 +6,7 @@ import 'dart:convert';
 import 'package:geolocator/geolocator.dart';
 import 'package:combee/helper/databaseHelper.dart';
 import 'package:combee/http/http_location.dart';
-import 'package:combee/views/checker/checker_page.dart';
+
 import 'package:combee/views/checker/checker_select_page.dart';
 import 'package:combee/views/tracking/tracking_page.dart';
 import 'package:select2dot1/select2dot1.dart';
@@ -148,11 +148,6 @@ class _ConfigurationPageFormState extends State<ConfigurationPageForm> {
       print("✅ 'isChecker' existe. Valor: $value");
 
       if (value!) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const CheckerPage()),
-        );
-
         return true;
       }
     } else {
@@ -691,3 +686,4 @@ class _ConfigurationPageFormState extends State<ConfigurationPageForm> {
     );
   }
 }
+*/

@@ -1,310 +1,434 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:combee/http/http_location.dart';
+import 'package:combee/model/rutachecador.dart';
+import 'package:combee/model/trackingrutaunidad.dart';
 import 'package:combee/views/home/components/hex_button.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'package:combee/views/auth/login_page.dart';
+
 import 'package:combee/views/configuration/configuration_page.dart';
-import 'package:combee/views/tracking/tracking_page.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants/constants.dart';
 
+import 'package:flutter_map/flutter_map.dart';
+
+import 'package:latlong2/latlong.dart';
+import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
+
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  const HomePage({Key? key}) : super(key: key);
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  /*BannerAd? _bannerAd;
-  bool _isLoaded = false;*/
+  final MapController _mapController = MapController();
+  String layer1 = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+  List<Map<String, dynamic>> resultados = [];
+  List<TrackingRutaUnidad> ubicaciones = [];
+  Timer? _timer;
+  final AccountLocation api = AccountLocation();
+
+  // 📍 variables de ubicación
+  LatLng? _miUbicacion;
+  StreamSubscription<Position>? _posicionSub;
+
+  List<String> _wmsLayers = [];
+
+  Map<String, bool> _wmsSeleccionadas = {};
+  Map<String, Color> _wmsColores = {};
+  final List<Color> _coloresDisponibles = [
+    Colors.brown,
+    Colors.green,
+    Colors.teal,
+    Colors.purple,
+    Colors.teal,
+    Colors.black,
+    Colors.deepPurpleAccent,
+  ];
+
+  List<RutaChecador> paradaVirtual = [];
 
   @override
   void initState() {
     super.initState();
-    //_loadBanner();
-    _check();
+
+    _buscar();
+    _iniciarActualizacionPeriodica();
+    _iniciarUbicacion();
   }
 
-  // -------------------------------
-  // BANNER
-  // -------------------------------
-  /*Future<void> _loadBanner() async {
-    final width =
-        WidgetsBinding
-            .instance
-            .platformDispatcher
-            .views
-            .first
-            .physicalSize
-            .width /
-        WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _posicionSub?.cancel();
+    super.dispose();
+  }
 
-    final AnchoredAdaptiveBannerAdSize? size =
-        await AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(
-          width.toInt(),
-        );
+  void _iniciarActualizacionPeriodica() {
+    // Actualiza tracking cada 15 minutos
+    _timer = Timer.periodic(const Duration(seconds: 15), (timer) {
+      _buscar();
+    });
+  }
 
-    if (size == null) return;
+  Future<void> _iniciarUbicacion() async {
+    bool servicio = await Geolocator.isLocationServiceEnabled();
+    if (!servicio) {
+      await Geolocator.openLocationSettings();
+      return;
+    }
 
-    late final BannerAd banner;
+    LocationPermission permiso = await Geolocator.checkPermission();
+    if (permiso == LocationPermission.denied) {
+      permiso = await Geolocator.requestPermission();
+      if (permiso == LocationPermission.denied) return;
+    }
 
-    banner = BannerAd(
-      adUnitId: Platform.isAndroid
-          ? "ca-app-pub-3940256099942544/6300978111"
-          : "ca-app-pub-3940256099942544/2934735716",
-      size: size,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (_) {
-          print("✅ Banner adaptativo cargado");
-          setState(() {
-            _bannerAd = banner;
-            _isLoaded = true;
-          });
-        },
-        onAdFailedToLoad: (ad, error) {
-          print("❌ Error Banner: $error");
-          ad.dispose();
-        },
-      ),
+    if (permiso == LocationPermission.deniedForever) return;
+
+    // Obtener ubicación inicial
+    Position pos = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
     );
+    setState(() {
+      _miUbicacion = LatLng(pos.latitude, pos.longitude);
+    });
 
-    await banner.load();
-  }*/
+    // Hacer focus en el mapa
+    _mapController.move(_miUbicacion!, 15);
 
-  _check() async {
-    final prefs = await SharedPreferences.getInstance();
+    // Escuchar ubicación en tiempo real
+    _posicionSub =
+        Geolocator.getPositionStream(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: 5, // actualiza cada 5 metros
+          ),
+        ).listen((Position pos) {
+          setState(() {
+            _miUbicacion = LatLng(pos.latitude, pos.longitude);
+          });
+        });
+  }
 
-    // Comprobamos si la clave existe
-    final exists = await prefs.containsKey("isTracking");
+  Future<void> _buscar() async {
+    try {
+      int? estado = 7;
+      int? municipio = 102;
+      String? ruta = "18";
 
-    if (exists) {
-      final value = await prefs.getString(
-        "isTracking",
-      ); // o getString, según cómo la guardaste
-      print("✅ 'isTracking' existe. Valor: $value");
+      await _cargarTracking(52, estado!, municipio!, ruta!);
+    } catch (e) {
+      print('Error al buscar: $e');
+    }
+  }
 
-      if (value == "true") {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const TrackingPage()),
-        );
+  Future<void> _cargarTracking(
+    int pais,
+    int estado,
+    int municipio,
+    String ruta,
+  ) async {
+    try {
+      final lista = await api.getRutaUnidadChecadorTracking(
+        pais,
+        estado,
+        municipio,
+        ruta,
+      );
+      /*setState(() {
+        ubicaciones = lista;
+      });*/
 
-        return;
+      // 🧠 Calcular activos e identificar capas WMS únicas
+      final now = DateTime.now();
+      final List<TrackingRutaUnidad> actualizadas = [];
+      final Set<String> wmsLayersSet = {};
+
+      for (final unidad in lista) {
+        // Verificar tiempo y calcular "activo"
+        bool activo = false;
+        if (unidad.tiempo != null && unidad.tiempo!.isNotEmpty) {
+          try {
+            final dt = DateTime.parse(unidad.tiempo!);
+            final diff = now.difference(dt);
+            activo = diff.inSeconds <= 60;
+          } catch (e) {
+            activo = false;
+          }
+        }
+
+        unidad.activo = activo;
+
+        // Si tiene WMS válido, agregarlo al set
+        if (unidad.wms != null &&
+            unidad.wms!.isNotEmpty &&
+            unidad.wms!.toLowerCase() != 'null') {
+          wmsLayersSet.add(unidad.wms!);
+        }
+
+        actualizadas.add(unidad);
       }
-    } else {
-      print("⚠️ 'isTracking' no existe en SharedPreferences.");
+
+      // 📦 Convertir Set a lista
+      final wmsLayers = wmsLayersSet.toList();
+
+      setState(() {
+        ubicaciones = actualizadas;
+        _wmsLayers = wmsLayers;
+
+        for (int i = 0; i < _wmsLayers.length; i++) {
+          final layer = _wmsLayers[i];
+          _wmsSeleccionadas.putIfAbsent(layer, () => true);
+          _wmsColores.putIfAbsent(
+            layer,
+            () => _coloresDisponibles[i % _coloresDisponibles.length],
+          );
+        }
+      });
+    } catch (e) {
+      print('Error al obtener tracking: $e');
+    }
+  }
+
+  void _mostrarSeleccionRutas() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateModal) {
+            return Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    "Rutas",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const Divider(),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: _wmsLayers.length,
+                      itemBuilder: (context, index) {
+                        final layer = _wmsLayers[index];
+                        return CheckboxListTile(
+                          title: Row(
+                            children: [
+                              Container(
+                                width: 16,
+                                height: 16,
+                                margin: const EdgeInsets.only(right: 8),
+                                decoration: BoxDecoration(
+                                  color: _wmsColores[layer],
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: Colors.black26),
+                                ),
+                              ),
+                              Text("Ruta ${layer.split(':').last}"),
+                            ],
+                          ),
+                          value: _wmsSeleccionadas[layer] ?? false,
+                          onChanged: (value) {
+                            setStateModal(() {
+                              _wmsSeleccionadas[layer] = value ?? false;
+                            });
+                            setState(() {}); // actualiza el mapa
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildParadaIcon(int tipo) {
+    switch (tipo) {
+      case 0:
+        return const Icon(Icons.location_on, color: Colors.orange, size: 35);
+      case 1:
+        return const Icon(Icons.flag, color: Colors.green, size: 35);
+      case 2:
+        return const Icon(Icons.stop_circle, color: Colors.red, size: 35);
+      default:
+        return const Icon(Icons.place, color: Colors.grey, size: 35);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // 🚍 Marcadores de unidades
+
+    final markers = ubicaciones
+        .where(
+          (unidad) =>
+              unidad.latitud != null &&
+              unidad.longitud != null &&
+              unidad.latitud!.isNotEmpty &&
+              unidad.longitud!.isNotEmpty,
+        )
+        .map(
+          (unidad) => Marker(
+            point: LatLng(
+              double.parse(unidad.latitud!),
+              double.parse(unidad.longitud!),
+            ),
+            width: 80,
+            height: 80,
+            child: Column(
+              children: [
+                Icon(
+                  Icons.directions_bus,
+                  color: unidad.activo! ? Colors.blue : Colors.red,
+                  size: 35,
+                ),
+                Text(
+                  "${unidad.ruta} - ${unidad.unidad}",
+                  style: const TextStyle(fontSize: 12, color: Colors.black),
+                ),
+              ],
+            ),
+          ),
+        )
+        .toList();
+
+    final allMarkers = [...markers];
+
+    // 📍 Agrega marcador de tu ubicación actual
+    if (_miUbicacion != null) {
+      allMarkers.add(
+        Marker(
+          point: _miUbicacion!,
+          width: 60,
+          height: 60,
+          child: const Icon(
+            Icons.person_pin_circle,
+            color: Color.fromARGB(255, 0, 156, 151),
+            size: 40,
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: AppColors.greyTitle),
-          onPressed: () async {
-            SharedPreferences prefs = await SharedPreferences.getInstance();
-            await prefs.setString("isLogin", "false");
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => LoginPage()),
-            );
-          },
-        ),
-        title: Row(
-          mainAxisSize: MainAxisSize.min, // evita que ocupe todo el ancho
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Image.asset(
-              AppImages.logoPantallaAppBar, // tu imagen PNG
-              height: 30, // ajusta tamaño
-            ),
-            const SizedBox(width: 8), // espacio entre imagen y texto
-            Flexible(
-              child: Text(
-                'Rastrea tu unidad',
-                overflow: TextOverflow.ellipsis, // evita desbordamiento
-                maxLines: 1,
-                style: const TextStyle(
-                  color: AppColors.greyTitle,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
+        title: const Text(
+          'Combee',
+          style: TextStyle(color: AppColors.greyTitle),
         ),
         backgroundColor: AppColors.primary,
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.greyTitle),
+          onPressed: () async {},
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.layers, color: AppColors.greyTitle),
+            onPressed: _mostrarSeleccionRutas,
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh, color: AppColors.greyTitle),
+            onPressed: _buscar,
+          ),
+        ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(30.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Tarjeta de bienvenida
-            Card(
-              elevation: 8,
-              child: Padding(
-                padding: const EdgeInsets.all(30.0),
-                child: Column(
-                  children: [
-                    Image.asset(
-                      AppImages.logoApp, // Ruta de tu imagen
-                      height: 120, // Ajusta la altura según necesites
-                      //width: 120, // Ajusta el ancho según necesites
-                      fit: BoxFit.contain,
-                    ),
-                    const SizedBox(height: 15),
-                  ],
-                ),
-              ),
-            ),
+      body: FlutterMap(
+        mapController: _mapController,
+        options: MapOptions(
+          initialCenter: const LatLng(19.4326, -99.1332), // CDMX
+          initialZoom: 10,
+        ),
+        children: [
+          TileLayer(urlTemplate: layer1, userAgentPackageName: 'com.combee.mx'),
 
-            const SizedBox(height: 40),
-
-            // Botón para ir al tutorial
-            /*ElevatedButton.icon(
-              onPressed: () {
-                /*Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const TutorialPage()),
-                );*/
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              icon: const Icon(Icons.school, color: Colors.white),
-              label: const Text(
-                'VER TUTORIAL',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ),*/
-            const SizedBox(height: 15),
-            HexButton(
-              text: 'INICIAR RASTREO',
-              textColor: Colors.white,
-              heightButton: 55,
-              widthButton: double.infinity,
-              colors: const [Colors.green, Colors.green],
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        const ConfigurationPage(view: AppUser.chofer),
+          ..._wmsLayers
+              .where((layerName) => _wmsSeleccionadas[layerName] ?? false)
+              .map(
+                (layerName) => TileLayer(
+                  wmsOptions: WMSTileLayerOptions(
+                    baseUrl:
+                        'https://mapas.siese.chiapas.gob.mx/geoserver/transporte/wms?',
+                    layers: [layerName],
+                    format: 'image/png',
+                    transparent: true,
+                    version: '1.3.0',
+                    crs: const Epsg3857(),
                   ),
-                );
-              },
-            ),
+                  // Color semitransparente por capa (para distinguir)
+                  tileBuilder: (context, widget, tile) {
+                    final color = _wmsColores[layerName] ?? Colors.transparent;
 
-            // Botón para ir al rastreo
-            /*ElevatedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        const ConfigurationPage(view: AppUser.chofer),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              icon: const Icon(Icons.play_arrow, color: Colors.white),
-              label: const Text(
-                'INICIAR RASTREO',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ),*/
-            const SizedBox(height: 20),
-
-            // Información de características
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    Text(
-                      'Características:',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                    return ColorFiltered(
+                      colorFilter: ColorFilter.mode(
+                        color.withOpacity(1),
+                        BlendMode.srcATop,
                       ),
-                    ),
-                    SizedBox(height: 10),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        FeatureItem(icon: Icons.update, text: 'Tiempo Real'),
-                        /*FeatureItem(
-                          icon: Icons.picture_in_picture,
-                          text: 'Overlay',
-                        ),*/
-                        FeatureItem(
-                          icon: Icons.battery_charging_full,
-                          text: 'Optimizado',
-                        ),
-                      ],
-                    ),
-                  ],
+                      child: widget,
+                    );
+                  },
                 ),
               ),
+
+          MarkerClusterLayerWidget(
+            options: MarkerClusterLayerOptions(
+              maxClusterRadius: 45,
+              size: const Size(40, 40),
+              markers: allMarkers,
+              zoomToBoundsOnClick: true,
+              centerMarkerOnClick: true,
+              builder: (context, clusterMarkers) {
+                return Container(
+                  decoration: BoxDecoration(
+                    color: Colors.blueAccent,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Center(
+                    child: Text(
+                      clusterMarkers.length.toString(),
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                );
+              },
             ),
-            /*const SizedBox(height: 20),
-            if (_isLoaded)
-              Container(
-                color: Colors.black12,
-                height: _bannerAd!.size.height.toDouble(),
-                width: MediaQuery.of(context).size.width,
-                child: AdWidget(ad: _bannerAd!),
-              ),*/
-          ],
-        ),
+          ),
+        ],
       ),
-    );
-  }
-}
-
-class FeatureItem extends StatelessWidget {
-  final IconData icon;
-  final String text;
-
-  const FeatureItem({super.key, required this.icon, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Icon(icon, color: AppColors.greyTitle, size: 30),
-        const SizedBox(height: 5),
-        Text(
-          text,
-          style: const TextStyle(fontSize: 12),
-          textAlign: TextAlign.center,
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: AppColors.primary,
+        icon: const Icon(Icons.my_location, color: AppColors.greyTitle),
+        label: const Text(
+          'Mi ubicación',
+          style: TextStyle(color: AppColors.greyTitle),
         ),
-      ],
+        onPressed: () {
+          if (_miUbicacion != null) {
+            _mapController.move(_miUbicacion!, 16);
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Ubicación no disponible')),
+            );
+          }
+        },
+      ),
     );
   }
 }

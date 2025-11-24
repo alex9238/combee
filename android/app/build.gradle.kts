@@ -2,11 +2,12 @@ import java.util.Properties
 import java.io.FileInputStream
 
 
+/* 
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
-}
+}*/
 
 
 plugins {
@@ -20,12 +21,12 @@ plugins {
 }
 
 android {
-    namespace = "com.combeetracking.mx"
+    namespace = "com.combee.mx"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
     defaultConfig {
-        applicationId = "com.combeetracking.mx"
+        applicationId = "com.combee.mx"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -45,12 +46,12 @@ android {
     }
 
     signingConfigs {
-        create("release") {
+        /*create("release") {
             keyAlias = keystoreProperties["keyAlias"] as String
             keyPassword = keystoreProperties["keyPassword"] as String
             storeFile = keystoreProperties["storeFile"]?.let { file(it) }
             storePassword = keystoreProperties["storePassword"] as String
-        }
+        }*/
 
         /*create("debug") {
             keyAlias = keystoreProperties["keyAlias"] as String
@@ -65,7 +66,7 @@ android {
             isMinifyEnabled = false
             isShrinkResources = false
             signingConfig = signingConfigs.getByName("debug") // ⚠️ usa release si tienes uno
-            signingConfig = signingConfigs.getByName("release")
+            //signingConfig = signingConfigs.getByName("release")
             
         }
         getByName("debug") {
