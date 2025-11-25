@@ -44,6 +44,7 @@ class DatabaseHelper {
         municipio TEXT,
         idruta INT,
         ruta TEXT,
+        wms TEXT,
         dateRecord DATETIME
         
       )
@@ -118,11 +119,12 @@ class DatabaseHelper {
     required String municipio,
     required int idruta,
     required String ruta,
+    required String wms,
   }) async {
     final db = await instance.database;
 
     final existing = await db.query(
-      'location',
+      'rutas',
       where: 'idestado = ? and idmunicipio=? and ruta=? and idruta=? ',
       whereArgs: [idestado, idmunicipio, ruta, idruta],
     );
@@ -135,11 +137,12 @@ class DatabaseHelper {
         'municipio': municipio,
         'idruta': idruta,
         'ruta': ruta,
+        'wms': wms,
         'dateRecord': DateTime.now().toIso8601String(),
       });
     } else {
       await db.update(
-        'location',
+        'rutas',
         {'dateRecord': DateTime.now().toIso8601String()},
         where: 'idestado = ? and idmunicipio=? and ruta=? and idruta=?  ',
         whereArgs: [idestado, idmunicipio, ruta, idruta],
@@ -158,20 +161,23 @@ class DatabaseHelper {
     return null;
   }
 
-  Future<List<Map<String, dynamic>>> getRutasSaveInDatabase({
-    required int estado,
-    required int municipio,
-  }) async {
+  Future<List<Map<String, dynamic>>> getRutasSaveInDatabase() async {
     final db = await instance.database;
     final result = await db.query(
       'rutas',
-      columns: ['ruta', 'idestado', 'idmunicipio'],
-      where: 'idestado = ? and idmunicipio=? ',
-      whereArgs: [estado, municipio],
       distinct: true,
       orderBy: 'dateRecord DESC',
     );
     return result;
+  }
+
+  Future<void> deleteRuta(int estado, int municipio, String ruta) async {
+    final db = await instance.database;
+    await db.delete(
+      'rutas',
+      where: 'idestado = ? and idmunicipio=? and ruta=? ',
+      whereArgs: [estado, municipio, ruta],
+    );
   }
 
   Future close() async {

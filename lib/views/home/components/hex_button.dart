@@ -16,7 +16,7 @@ class HexButton extends StatelessWidget {
     required this.colors,
     required this.widthButton,
     required this.heightButton,
-    
+
     required this.onTap,
   });
 
@@ -27,30 +27,32 @@ class HexButton extends StatelessWidget {
       child: ClipPath(
         clipper: _HexClipper(),
         child: Container(
-          height: heightButton,
-          width: widthButton,
+          padding: const EdgeInsets.all(2), // grosor del borde
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: colors,
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.15),
-                blurRadius: 6,
-                offset: const Offset(0, 3),
-              ),
-            ],
+            color: Colors.black, // color del borde
           ),
-          alignment: Alignment.center,
-          child: Text(
-            text,
-            style: TextStyle(
-              color: textColor,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.0,
+          child: ClipPath(
+            clipper: _HexClipper(),
+            child: Container(
+              height: heightButton,
+              width: widthButton,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: colors,
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                text,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.0,
+                ),
+              ),
             ),
           ),
         ),

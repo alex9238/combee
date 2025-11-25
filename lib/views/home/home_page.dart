@@ -1,12 +1,16 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 import 'dart:ui';
 
 import 'package:combee/helper/databaseHelper.dart';
 import 'package:combee/http/http_location.dart';
+import 'package:combee/model/direccion.dart';
+import 'package:combee/model/ruta.dart';
 import 'package:combee/model/rutachecador.dart';
 import 'package:combee/model/trackingrutaunidad.dart';
 import 'package:combee/views/home/components/hex_button.dart';
+import 'package:combee/views/home/components/rounded_button.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -23,6 +27,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 
+import 'package:flutter_typeahead/flutter_typeahead.dart';
+
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
 
@@ -30,7 +36,8 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage>
+    with SingleTickerProviderStateMixin {
   final MapController _mapController = MapController();
   String layer1 = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
@@ -47,7 +54,7 @@ class _HomePageState extends State<HomePage> {
 
   Map<String, bool> _wmsSeleccionadas = {};
   Map<String, Color> _wmsColores = {};
-  final List<Color> _coloresDisponibles = [
+  /*final List<Color> _coloresDisponibles = [
     Colors.brown,
     Colors.green,
     Colors.teal,
@@ -55,6 +62,26 @@ class _HomePageState extends State<HomePage> {
     Colors.teal,
     Colors.black,
     Colors.deepPurpleAccent,
+  ];*/
+
+  // Reemplaza tu lista de colores disponibles con una más amplia
+  final List<Color> _coloresDisponibles = [
+    Colors.red,
+    Colors.blue,
+    Colors.green,
+    Colors.orange,
+    Colors.purple,
+    Colors.teal,
+    Colors.pink,
+    Colors.indigo,
+    Colors.amber,
+    Colors.cyan,
+    Colors.deepOrange,
+    Colors.lime,
+    Colors.brown,
+    Colors.deepPurple,
+    Colors.lightBlue,
+    Colors.yellow,
   ];
 
   List<RutaChecador> paradaVirtual = [];
@@ -62,9 +89,14 @@ class _HomePageState extends State<HomePage> {
   SelectDataController? estadoController;
   SelectDataController? municipioController;
 
+  SelectDataController? rutaController;
+
   bool loadingEstados = true;
   bool loadingMunicipios = false;
+  bool loadingRutas = false;
+
   bool municipioEnabled = false;
+  bool rutaEnabled = false;
 
   int? selectedEstadoId;
   String? selectedEstadoName;
@@ -72,20 +104,85 @@ class _HomePageState extends State<HomePage> {
   int? selectedMunicipioId;
   String? selectedMunicipioName;
 
+  int? selectedRutaId;
+  String? selectedRutaName;
+
   final _formKey = GlobalKey<FormState>();
+
+  final _formKeyPoint = GlobalKey<FormState>();
 
   int? idEstado;
   int? idMunicipio;
+
+  int? idRuta;
   bool cargando = true;
+
+  late TabController _tabController;
+
+  final ScrollController _scrollController = ScrollController();
+  bool _showLeft = false;
+  bool _showRight = true;
+
+  bool _mostrarCard = true;
+
+  final TextEditingController ubicacion1Controller = TextEditingController();
+  final TextEditingController ubicacion2Controller = TextEditingController();
+
+  late List<Ruta> _rutasCargadas = [];
+  Ruta? selectedRuta;
 
   @override
   void initState() {
     super.initState();
 
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+
+    _scrollController.addListener(() {
+      if (!mounted) return;
+
+      setState(() {
+        _showLeft = _scrollController.offset > 0;
+        _showRight =
+            _scrollController.offset <
+            _scrollController.position.maxScrollExtent;
+      });
+    });
+
     //_buscar();
     //_iniciarActualizacionPeriodica();
-    _iniciarUbicacion();
-    _initLocationFlow();
+
+    initConfig();
+  }
+
+  void initConfig() async {
+    await _checkPermission();
+    await _initLocationFlow();
+    await _iniciarUbicacion();
+    await _cargarTracking();
+  }
+
+  void _asignarColoresWMS() {
+    _wmsColores.clear();
+
+    for (int i = 0; i < _wmsLayers.length; i++) {
+      final layer = _wmsLayers[i];
+      _wmsColores[layer] = _coloresDisponibles[i % _coloresDisponibles.length];
+
+      // Si se acaban los colores únicos, generamos colores aleatorios
+      if (i >= _coloresDisponibles.length) {
+        _wmsColores[layer] = Color.fromRGBO(
+          Random().nextInt(256),
+          Random().nextInt(256),
+          Random().nextInt(256),
+          1.0,
+        );
+      }
+    }
   }
 
   Future<void> _initLocationFlow() async {
@@ -131,6 +228,10 @@ class _HomePageState extends State<HomePage> {
     // Luego, si tenemos un idEstado, cargamos municipios
     if (idEstado != null) {
       await _loadMunicipios(idEstado!);
+    }
+
+    if (idEstado != null && idMunicipio != null) {
+      await _loadRutas(idEstado!, idMunicipio!);
     }
 
     setState(() => cargando = false);
@@ -226,6 +327,52 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  Future<void> _loadRutas(int idEstado, int idMunicipio) async {
+    setState(() {
+      loadingRutas = true;
+      rutaEnabled = false;
+    });
+
+    final rutas = await api.getRouteByStateMunicipality(idEstado, idMunicipio);
+
+    _rutasCargadas = rutas;
+
+    final items = rutas
+        .map(
+          (m) => SingleItemCategoryModel(
+            nameSingleItem: m.ruta ?? '',
+            value: m.idruta.toString(),
+          ),
+        )
+        .toList();
+
+    // Si ya tenemos un idMunicipio detectado, lo preseleccionamos
+    SingleItemCategoryModel? selectedRutaItem;
+    if (idRuta != null) {
+      selectedRutaItem = items.firstWhere(
+        (item) => item.value == idRuta.toString(),
+        orElse: () => items.first,
+      );
+      selectedRutaId = int.tryParse(selectedRutaItem.value);
+    }
+
+    rutaController = SelectDataController(
+      data: [
+        SingleCategoryModel(
+          nameCategory: "Rutas",
+          singleItemCategoryList: items,
+        ),
+      ],
+      isMultiSelect: false,
+      initSelected: selectedRutaItem != null ? [selectedRutaItem] : null,
+    );
+
+    setState(() {
+      loadingRutas = false;
+      rutaEnabled = true;
+    });
+  }
+
   Future<bool> _checkPermission() async {
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
@@ -245,7 +392,7 @@ class _HomePageState extends State<HomePage> {
   void _iniciarActualizacionPeriodica() {
     // Actualiza tracking cada 15 minutos
     _timer = Timer.periodic(const Duration(seconds: 15), (timer) {
-      _buscar();
+      _cargarTracking();
     });
   }
 
@@ -291,29 +438,65 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _buscar() async {
     try {
-      int? estado = 7;
-      int? municipio = 102;
-      String? ruta = "18";
+      if (selectedRuta == null) return;
 
-      await _cargarTracking(52, estado!, municipio!, ruta!);
+      final String? wms = selectedRuta!.wms;
+
+      await DatabaseHelper.instance.insertRutas(
+        idestado: idEstado!,
+        estado: selectedEstadoName!,
+        idmunicipio: idMunicipio!,
+        municipio: selectedMunicipioName!,
+        idruta: idRuta!,
+        ruta: selectedRutaName!,
+        wms: wms!,
+      );
+
+      await _cargarTracking();
+
+      _iniciarActualizacionPeriodica();
     } catch (e) {
       print('Error al buscar: $e');
     }
   }
 
-  Future<void> _cargarTracking(
-    int pais,
-    int estado,
-    int municipio,
-    String ruta,
-  ) async {
+  Future<void> _cargarTracking() async {
     try {
-      final lista = await api.getRutaUnidadChecadorTracking(
-        pais,
-        estado,
-        municipio,
-        ruta,
-      );
+      final data = await DatabaseHelper.instance.getRutasSaveInDatabase();
+      final Set<String> wmsLayersSet = {};
+
+      final mapped =
+          data?.map((item) {
+            return {
+              'ruta': item['ruta'] ?? '',
+              'municipio': item['idmunicipio'] ?? '',
+              'estado': item['idestado'] ?? '',
+              'pais': '52',
+            };
+          }).toList() ??
+          [];
+
+      final mapped_wms =
+          data?.map((item) {
+            return {'wms': item['wms'] ?? ''};
+          }).toList() ??
+          [];
+
+      for (final item in mapped_wms) {
+        final wms = item['wms']?.toString() ?? '';
+
+        if (wms.isNotEmpty && wms.toLowerCase() != 'null') {
+          wmsLayersSet.add(wms);
+        }
+      }
+
+      print("WMS desde DB: $wmsLayersSet");
+
+      /*setState(() {
+        resultados = mapped;
+      });*/
+
+      final lista = await api.getRutaUnidadTracking(mapped);
       /*setState(() {
         ubicaciones = lista;
       });*/
@@ -321,7 +504,6 @@ class _HomePageState extends State<HomePage> {
       // 🧠 Calcular activos e identificar capas WMS únicas
       final now = DateTime.now();
       final List<TrackingRutaUnidad> actualizadas = [];
-      final Set<String> wmsLayersSet = {};
 
       for (final unidad in lista) {
         // Verificar tiempo y calcular "activo"
@@ -339,11 +521,11 @@ class _HomePageState extends State<HomePage> {
         unidad.activo = activo;
 
         // Si tiene WMS válido, agregarlo al set
-        if (unidad.wms != null &&
+        /*if (unidad.wms != null &&
             unidad.wms!.isNotEmpty &&
             unidad.wms!.toLowerCase() != 'null') {
           wmsLayersSet.add(unidad.wms!);
-        }
+        }*/
 
         actualizadas.add(unidad);
       }
@@ -354,7 +536,9 @@ class _HomePageState extends State<HomePage> {
       setState(() {
         ubicaciones = actualizadas;
         _wmsLayers = wmsLayers;
+        resultados = mapped;
 
+        /*
         for (int i = 0; i < _wmsLayers.length; i++) {
           final layer = _wmsLayers[i];
           _wmsSeleccionadas.putIfAbsent(layer, () => true);
@@ -363,6 +547,19 @@ class _HomePageState extends State<HomePage> {
             () => _coloresDisponibles[i % _coloresDisponibles.length],
           );
         }
+        */
+
+        for (final layer in _wmsLayers) {
+          _wmsSeleccionadas.putIfAbsent(layer, () => true);
+        }
+
+        // Asignar colores únicos
+        _asignarColoresWMS();
+      });
+
+      print("Colores asignados:");
+      _wmsColores.forEach((key, value) {
+        print("$key  ->  $value");
       });
     } catch (e) {
       print('Error al obtener tracking: $e');
@@ -467,7 +664,7 @@ class _HomePageState extends State<HomePage> {
                   size: 35,
                 ),
                 Text(
-                  "${unidad.ruta} - ${unidad.unidad}",
+                  "${unidad.ruta}",
                   style: const TextStyle(fontSize: 12, color: Colors.black),
                 ),
               ],
@@ -528,32 +725,49 @@ class _HomePageState extends State<HomePage> {
                 },
               ),
             ),
-
-        MarkerClusterLayerWidget(
-          options: MarkerClusterLayerOptions(
-            maxClusterRadius: 45,
-            size: const Size(40, 40),
-            markers: allMarkers,
-            zoomToBoundsOnClick: true,
-            centerMarkerOnClick: true,
-            builder: (context, clusterMarkers) {
-              return Container(
-                decoration: BoxDecoration(
-                  color: Colors.blueAccent,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Center(
-                  child: Text(
-                    clusterMarkers.length.toString(),
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
+        MarkerLayer(markers: allMarkers),
       ],
     );
+  }
+
+  double get cardHeight {
+    return _mostrarCard ? 430 : 30;
+  }
+
+  Widget _flechaIzquierda() {
+    return Container(
+      width: 40,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.white, Colors.white.withOpacity(0.0)],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+      ),
+      child: const Icon(Icons.chevron_left, size: 28),
+    );
+  }
+
+  Widget _flechaDerecha() {
+    return Container(
+      width: 40,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.white, Colors.white.withOpacity(0.0)],
+          begin: Alignment.centerRight,
+          end: Alignment.centerLeft,
+        ),
+      ),
+      child: const Icon(Icons.chevron_right, size: 28),
+    );
+  }
+
+  _deleteRutaResultado(int estado, int municipio, String ruta) async {
+    await DatabaseHelper.instance.deleteRuta(estado, municipio, ruta);
+
+    _cargarTracking();
   }
 
   Widget _buildDrawer(BuildContext context) {
@@ -729,13 +943,13 @@ class _HomePageState extends State<HomePage> {
 
             const SizedBox(height: 10),
             // ----------- SELECT MUNICIPIO -----------
-            if (loadingMunicipios || municipioController == null)
+            if (loadingRutas || rutaController == null)
               const Center(child: CircularProgressIndicator())
             else
               IgnorePointer(
-                ignoring: !municipioEnabled,
+                ignoring: !rutaEnabled,
                 child: Opacity(
-                  opacity: municipioEnabled ? 1.0 : 0.5,
+                  opacity: rutaEnabled ? 1.0 : 0.5,
                   child: Select2dot1(
                     searchEmptyInfoModalSettings:
                         const SearchEmptyInfoModalSettings(
@@ -755,16 +969,21 @@ class _HomePageState extends State<HomePage> {
                       textStyle: TextStyle(color: Colors.black),
                     ),
 
-                    selectDataController: municipioController!,
+                    selectDataController: rutaController!,
                     onChanged: (selectedItems) {
                       final item = selectedItems.isNotEmpty
                           ? selectedItems.first
                           : null;
-                      selectedMunicipioId = int.tryParse(item?.value ?? '');
+                      selectedRutaId = int.tryParse(item?.value ?? '');
 
-                      idMunicipio = selectedMunicipioId;
+                      idRuta = selectedRutaId;
 
-                      selectedMunicipioName = item?.nameSingleItem;
+                      selectedRutaName = item?.nameSingleItem;
+
+                      selectedRuta = _rutasCargadas.firstWhere(
+                        (r) => r.idruta == selectedRutaId,
+                        orElse: () => Ruta(),
+                      );
                     },
                     pillboxTitleSettings: const PillboxTitleSettings(
                       title: "Selecciona una ruta",
@@ -776,18 +995,153 @@ class _HomePageState extends State<HomePage> {
 
             const SizedBox(height: 30),
 
-            HexButton(
+            RoundedButton(
               text: 'Buscar',
               textColor: Colors.black,
-              heightButton: 20,
+              heightButton: 40,
               widthButton: 200,
               colors: const [AppColors.primary, AppColors.primary],
-              onTap: () {}, // _validarFormulario,
+              onTap: _validarFormulario,
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildFormRutaPoint() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+      child: Form(
+        key: _formKeyPoint,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TypeAheadField<Direccion>(
+              controller: ubicacion1Controller,
+              suggestionsCallback: (pattern) async {
+                if (pattern.isEmpty) return [];
+                return await api.getAddressPoint(pattern.toLowerCase());
+              },
+              builder: (context, controller, focusNode) => TextFormField(
+                controller: controller,
+                focusNode: focusNode,
+                decoration: const InputDecoration(
+                  labelText: "¿Dónde tomarás la ruta?",
+                  prefixIcon: Icon(Icons.alt_route),
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) =>
+                    value == null || value.isEmpty ? "Campo requerido" : null,
+              ),
+              itemBuilder: (context, Direccion suggestion) {
+                return ListTile(
+                  leading: const Icon(Icons.directions),
+                  title: Text(suggestion.direccion ?? ''),
+                  /*subtitle: Text(
+                    "Lat: ${suggestion.latitud}, Lon: ${suggestion.longitud}",
+                  ),*/
+                );
+              },
+              onSelected: (Direccion selected) async {
+                // Rellenar el TextField con la dirección seleccionada
+                ubicacion1Controller.text = selected.direccion ?? "";
+
+                // Puedes guardar lat y long donde quieras:
+                print("Latitud: ${selected.latitud}");
+                print("Longitud: ${selected.longitud}");
+              },
+            ),
+
+            const SizedBox(height: 30),
+
+            TypeAheadField<Direccion>(
+              controller: ubicacion2Controller,
+              suggestionsCallback: (pattern) async {
+                if (pattern.isEmpty) return [];
+                return await api.getAddressPoint(pattern.toLowerCase());
+              },
+              builder: (context, controller, focusNode) => TextFormField(
+                controller: controller,
+                focusNode: focusNode,
+                decoration: const InputDecoration(
+                  labelText: "¿Dónde iras?",
+                  prefixIcon: Icon(Icons.alt_route),
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) =>
+                    value == null || value.isEmpty ? "Campo requerido" : null,
+              ),
+              itemBuilder: (context, Direccion suggestion) {
+                return ListTile(
+                  leading: const Icon(Icons.directions),
+                  title: Text(suggestion.direccion ?? ''),
+                  /*subtitle: Text(
+                    "Lat: ${suggestion.latitud}, Lon: ${suggestion.longitud}",
+                  ),*/
+                );
+              },
+              onSelected: (Direccion selected) async {
+                // Rellenar el TextField con la dirección seleccionada
+                ubicacion2Controller.text = selected.direccion ?? "";
+
+                // Puedes guardar lat y long donde quieras:
+                print("Latitud: ${selected.latitud}");
+                print("Longitud: ${selected.longitud}");
+              },
+            ),
+
+            const SizedBox(height: 30),
+
+            RoundedButton(
+              text: 'Buscar',
+              textColor: Colors.black,
+              heightButton: 40,
+              widthButton: 200,
+              colors: const [AppColors.primary, AppColors.primary],
+              onTap: _validarFormularioPuntos,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _validarFormulario() {
+    final form = _formKey.currentState!;
+    final estadoSeleccionado = selectedEstadoId != null;
+    final municipioSeleccionado = selectedMunicipioId != null;
+    final rutaSeleccionado = selectedRutaId != null;
+
+    if (!estadoSeleccionado || !municipioSeleccionado || !rutaSeleccionado) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Selecciona un estado, un municipio y una ruta antes de continuar.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (form.validate()) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Formulario válido ✅")));
+
+      _buscar();
+    }
+  }
+
+  void _validarFormularioPuntos() {
+    final formPoint = _formKeyPoint.currentState!;
+
+    if (formPoint.validate()) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Formulario válido ✅")));
+    }
   }
 
   @override
@@ -813,47 +1167,39 @@ class _HomePageState extends State<HomePage> {
                   filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                   child: Card(
                     elevation: 6,
-                    color: AppColors.primary, //.withOpacity(0.7),
+                    color: AppColors.primary,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                     ),
-
-                    /// IMPORTANTE: Card contiene header + tabs + contenido
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // ====== HEADER ======
+                        // HEADER
                         SizedBox(
                           height: 40,
                           child: Row(
                             children: [
                               Builder(
-                                builder: (context) {
-                                  return IconButton(
-                                    icon: const Icon(
-                                      Icons.menu,
-                                      color: AppColors.greyTitle,
-                                    ),
-                                    onPressed: () {
-                                      Scaffold.of(context).openDrawer();
-                                    },
-                                  );
-                                },
+                                builder: (context) => IconButton(
+                                  icon: const Icon(
+                                    Icons.menu,
+                                    color: AppColors.greyTitle,
+                                  ),
+                                  onPressed: () =>
+                                      Scaffold.of(context).openDrawer(),
+                                ),
                               ),
 
                               Expanded(
                                 child: Center(
-                                  child: Text(
-                                    'Combee',
-                                    style: const TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.greyTitle,
-                                    ),
+                                  child: Image.asset(
+                                    AppImages.logoAppSinSlogan,
+                                    height: 100,
+                                    width: 100,
+                                    fit: BoxFit.contain,
                                   ),
                                 ),
                               ),
-
                               IconButton(
                                 icon: const Icon(
                                   Icons.layers,
@@ -861,45 +1207,52 @@ class _HomePageState extends State<HomePage> {
                                 ),
                                 onPressed: _mostrarSeleccionRutas,
                               ),
-                            ],
-                          ),
-                        ),
 
-                        // ====== TAB BAR ======
-                        const TabBar(
-                          labelColor: Colors.black,
-                          unselectedLabelColor: Colors.grey,
-                          tabs: [
-                            Tab(text: "Rutas"),
-                            Tab(text: "Búsqueda por puntos"),
-                          ],
-                        ),
-
-                        // ====== TAB CONTENT DENTRO DEL CARD ======
-                        SizedBox(
-                          height: 350, // puedes ajustar altura
-                          child: TabBarView(
-                            children: [
-                              // TAB 1
-                              _buildFormRuta(),
-
-                              // TAB 2
-                              Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.9),
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: const Center(
-                                    child: Text(
-                                      "Contenido de búsqueda por puntos",
-                                    ),
-                                  ),
+                              // << ESTE ES EL BOTÓN PARA MOSTRAR/OCULTAR >>
+                              IconButton(
+                                icon: Icon(
+                                  _mostrarCard
+                                      ? Icons.expand_less
+                                      : Icons.expand_more,
+                                  color: AppColors.greyTitle,
                                 ),
+                                onPressed: () {
+                                  setState(() => _mostrarCard = !_mostrarCard);
+                                },
                               ),
                             ],
                           ),
+                        ),
+
+                        // TABBAR + CONTENIDO, OCULTABLE
+                        AnimatedSwitcher(
+                          duration: Duration(milliseconds: 250),
+                          child: _mostrarCard
+                              ? Column(
+                                  key: ValueKey(true),
+                                  children: [
+                                    TabBar(
+                                      controller: _tabController,
+                                      labelColor: Colors.black,
+                                      unselectedLabelColor: Colors.grey,
+                                      tabs: [
+                                        Tab(text: "Rutas"),
+                                        Tab(text: "Búsqueda por puntos"),
+                                      ],
+                                    ),
+                                    SizedBox(
+                                      height: 350,
+                                      child: TabBarView(
+                                        controller: _tabController,
+                                        children: [
+                                          _buildFormRuta(),
+                                          _buildFormRutaPoint(),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : SizedBox.shrink(key: ValueKey(false)),
                         ),
                       ],
                     ),
@@ -907,6 +1260,102 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             ),
+
+            if (_tabController.index == 0)
+              AnimatedPositioned(
+                duration: Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+                top: 30 + cardHeight + 20,
+                left: 0,
+                right: 0,
+                child: SizedBox(
+                  height: 65,
+                  child: Stack(
+                    children: [
+                      // LISTVIEW
+                      ListView.builder(
+                        controller: _scrollController,
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 40),
+                        itemCount: resultados.length,
+                        itemBuilder: (context, index) {
+                          final item = resultados[index];
+                          final rutaNumero = item['ruta']?.toString() ?? '';
+
+                          // Buscar la capa WMS correspondiente a esta ruta
+                          String? wmsLayer;
+                          for (final layer in _wmsLayers) {
+                            if (layer.contains(rutaNumero)) {
+                              wmsLayer = layer;
+                              break;
+                            }
+                          }
+
+                          // Obtener el color asignado a esta capa WMS
+                          final color = wmsLayer != null
+                              ? _wmsColores[wmsLayer]
+                              : Colors.grey;
+
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 10),
+                            child: InputChip(
+                              label: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // Indicador de color
+                                  Container(
+                                    width: 12,
+                                    height: 12,
+                                    margin: const EdgeInsets.only(right: 6),
+                                    decoration: BoxDecoration(
+                                      color: color,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.black38,
+                                        width: 1,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    "RUTA $rutaNumero",
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+                                ],
+                              ),
+                              backgroundColor: Colors.white,
+                              elevation: 3,
+                              deleteIcon: const Icon(Icons.close, size: 18),
+                              onDeleted: () {
+                                _deleteRutaResultado(
+                                  item['estado'],
+                                  item['municipio'],
+                                  item['ruta'],
+                                );
+                              },
+                            ),
+                          );
+                        },
+                      ),
+
+                      if (_showLeft)
+                        Positioned(
+                          left: 0,
+                          top: 0,
+                          bottom: 0,
+                          child: _flechaIzquierda(),
+                        ),
+
+                      if (_showRight)
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          bottom: 0,
+                          child: _flechaDerecha(),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
           ],
         ),
 

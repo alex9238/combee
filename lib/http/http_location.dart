@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:math';
 import 'dart:convert';
+import 'package:combee/model/direccion.dart';
+import 'package:combee/model/ruta.dart';
 import 'package:combee/model/rutaunidaddetalle.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
@@ -16,49 +18,10 @@ import '../model/municipio.dart';
 class AccountLocation {
   final String urlEndpoint = "https://apirutas.com-mx.com.mx";
 
-  Future<int> sendTracking(
-    double latitud,
-    double longitud,
-    String ruta,
-    String unidad,
-    int estado,
-    int municipio,
-  ) async {
-    try {
-      print("Enviando ubicación servidor");
-      var url = Uri.parse("$urlEndpoint/tracking");
-      final http.Response response = await http.post(
-        url,
-        body: jsonEncode({
-          'latitud': latitud,
-          'longitud': longitud, // Reemplaza con tu client ID
-          'ruta': ruta,
-          'unidad': unidad,
-          'estado': estado,
-          'municipio': municipio,
-          'pais': 52,
-        }),
-        headers: {"Content-Type": "application/json"},
-      );
-      print("#### Resultado Envio");
-      print("Enviando ubicación servidor ${response.statusCode}");
-      //print("Enviando ubicación servidor ${response.body}");
-
-      if (response.statusCode == 200) {
-        return 1;
-      }
-    } catch (e) {
-      print("aqui ente");
-      print(e);
-      return -100;
-    }
-    return 0;
-  }
-
   Future<List<Estado>> getState() async {
     try {
       print("Enviando ubicación");
-      var url = Uri.parse("$urlEndpoint/state");
+      var url = Uri.parse("$urlEndpoint/routes/state");
       final http.Response response = await http.get(
         url,
         headers: {"Content-Type": "application/json"},
@@ -87,7 +50,7 @@ class AccountLocation {
   Future<List<Municipio>> getMunicipality(int estado) async {
     try {
       debugPrint("Estado a buscar ${estado}");
-      var url = Uri.parse("$urlEndpoint/state/$estado/municipality");
+      var url = Uri.parse("$urlEndpoint/routes/state/$estado/municipality");
       final http.Response response = await http.get(
         url,
         headers: {"Content-Type": "application/json"},
@@ -146,48 +109,6 @@ class AccountLocation {
       print(e);
     }
 
-    return _responseApi;
-  }
-
-  Future<ApiResponse> sendStop(
-    double latitud,
-    double longitud,
-    String ruta,
-    String unidad,
-    int estado,
-    int municipio,
-  ) async {
-    ApiResponse _responseApi = ApiResponse();
-    _responseApi.message = -1;
-
-    try {
-      print("Registrando ubicación parada");
-      var url = Uri.parse("$urlEndpoint/ruta/paradas");
-      final http.Response response = await http.post(
-        url,
-        body: jsonEncode({
-          'latitud': latitud,
-          'longitud': longitud, // Reemplaza con tu client ID
-          'ruta': ruta,
-          'unidad': unidad,
-          'estado': estado,
-          'municipio': municipio,
-          'pais': 52,
-        }),
-        headers: {"Content-Type": "application/json"},
-      );
-      print("#### Resultado Envio");
-      /*print("Enviando ubicación servidor ${response.statusCode}");
-        print("Enviando ubicación servidor ${response.body}");*/
-
-      if (response.statusCode == 200) {
-        final json = jsonDecode(response.body);
-        _responseApi = ApiResponse.simple(json);
-      }
-    } catch (e) {
-      print("aqui ente");
-      print(e);
-    }
     return _responseApi;
   }
 
@@ -266,95 +187,6 @@ class AccountLocation {
     return [];
   }
 
-  Future<ApiResponse> sendCheckout(
-    double latitud,
-    double longitud,
-    int ruta,
-    int unidad,
-    int checador,
-    int check,
-    String hora,
-  ) async {
-    ApiResponse _responseApi = ApiResponse();
-    _responseApi.message = -1;
-
-    try {
-      print("Registrando checkout unidad ");
-
-      var url = Uri.parse("$urlEndpoint/rutas/checkout");
-      final http.Response response = await http.post(
-        url,
-        body: jsonEncode({
-          'latitud': latitud,
-          'longitud': longitud, // Reemplaza con tu client ID
-          'ruta': ruta,
-          'unidad': unidad,
-          'checador': checador,
-          'check': check,
-          'hora': hora,
-        }),
-        headers: {"Content-Type": "application/json"},
-      );
-      print("#### Resultado Envio");
-      /*print("Enviando ubicación servidor ${response.statusCode}");
-        print("Enviando ubicación servidor ${response.body}");*/
-
-      if (response.statusCode == 200) {
-        final json = jsonDecode(response.body);
-        _responseApi = ApiResponse.simple(json);
-      }
-    } catch (e) {
-      print("aqui ente");
-      print(e);
-    }
-    return _responseApi;
-  }
-
-  Future<ApiResponse> sendQualification(
-    double latitud,
-    double longitud,
-    int ruta,
-    int unidad,
-    int checador,
-    int check,
-    int calificacion,
-  ) async {
-    ApiResponse _responseApi = ApiResponse();
-    _responseApi.message = -1;
-
-    try {
-      print("Registrando calificacion unidad ");
-      var url = Uri.parse("$urlEndpoint/rutas/unidades/calificaciones");
-
-      final http.Response response = await http.post(
-        url,
-        body: jsonEncode({
-          'latitud': latitud,
-          'longitud': longitud, // Reemplaza con tu client ID
-          'ruta': ruta,
-          'unidad': unidad,
-          'checador': checador,
-          'check': check,
-          'calificacion': calificacion,
-        }),
-        headers: {"Content-Type": "application/json"},
-      );
-      print("#### Resultado Envio");
-      /*print("Enviando ubicación servidor ${response.statusCode}");
-        print("Enviando ubicación servidor ${response.body}");*/
-
-      if (response.statusCode == 200) {
-        final json = jsonDecode(response.body);
-
-        _responseApi = ApiResponse.simple(json);
-      }
-    } catch (e) {
-      print("aqui ente");
-      print(e);
-    }
-    return _responseApi;
-  }
-
   Future<List<RutaChecador>> getRutaChecador(
     int pais,
     int estado,
@@ -393,23 +225,61 @@ class AccountLocation {
     return [];
   }
 
-  Future<List<TrackingRutaUnidad>> getRutaUnidadChecadorTracking(
-    int pais,
+  /*
+      #################################################
+      METODOS PUBLICOS
+      #################################################
+  */
+
+  Future<List<Ruta>> getRouteByStateMunicipality(
     int estado,
     int municipio,
-    String ruta,
   ) async {
     try {
-      print("Obtener ruta unidad checador 2 -2 ");
-
+      debugPrint("Rutas buscando  ${estado}  ${municipio}");
       var url = Uri.parse(
-        "$urlEndpoint/rutas/checador/tracking?pais=${pais}&estado=${estado}&municipio=${municipio}&ruta=${ruta}",
+        "$urlEndpoint/routes/state/$estado/municipality/$municipio",
       );
       final http.Response response = await http.get(
         url,
         headers: {"Content-Type": "application/json"},
       );
-      print("#### Resultado ruta unidad checador");
+      debugPrint("#### Rutas ");
+      debugPrint("${response.statusCode}");
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+
+        final res = ApiResponse<Ruta>.fromJson(json, (j) => Ruta.fromJson(j));
+
+        if (res.message == 1) {
+          return res.data;
+        }
+      }
+    } catch (e) {
+      print("aqui ente");
+      print(e);
+    }
+    return [];
+  }
+
+  Future<List<TrackingRutaUnidad>> getRutaUnidadTracking(
+    List<Map<String, dynamic>> query,
+  ) async {
+    try {
+      print("Obtener ruta unidad checador 2 -2 ");
+
+      if (query.length == 0) {
+        return [];
+      }
+
+      var url = Uri.parse("$urlEndpoint/routes/units");
+      final http.Response response = await http.post(
+        url,
+        body: jsonEncode(query),
+        headers: {"Content-Type": "application/json"},
+      );
+      print("#### Resultado ruta unidad publico ");
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
@@ -430,34 +300,23 @@ class AccountLocation {
     return [];
   }
 
-  Future<List<RutaUnidadDetalle>> getRutaUnidadChecadorDetalle(
-    int pais,
-    int estado,
-    int municipio,
-    String ruta,
-    String unidad,
-  ) async {
+  Future<List<Direccion>> getAddressPoint(String addresss) async {
     try {
-      print("Obtener ruta unidad checador detalle ");
-
-      print(
-        "$urlEndpoint/rutas/unidades/detalle?pais=${pais}&estado=${estado}&municipio=${municipio}&ruta=${ruta}&unidad=${unidad}",
-      );
-      var url = Uri.parse(
-        "$urlEndpoint/rutas/unidades/detalle?pais=${pais}&estado=${estado}&municipio=${municipio}&ruta=${ruta}&unidad=${unidad}",
-      );
+      debugPrint("Direccion buscando ");
+      var url = Uri.parse("$urlEndpoint/address?q=$addresss");
       final http.Response response = await http.get(
         url,
         headers: {"Content-Type": "application/json"},
       );
-      print("#### Resultado ruta unidad checador");
+      debugPrint("#### Direccion ");
+      debugPrint("${response.statusCode}");
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
 
-        final res = ApiResponse<RutaUnidadDetalle>.fromJson(
+        final res = ApiResponse<Direccion>.fromJson(
           json,
-          (j) => RutaUnidadDetalle.fromJson(j),
+          (j) => Direccion.fromJson(j),
         );
 
         if (res.message == 1) {
