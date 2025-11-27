@@ -19,6 +19,7 @@ import 'package:combee/views/configuration/configuration_page.dart';
 import 'package:select2dot1/select2dot1.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:geocoding/geocoding.dart';
 
 import '../../core/constants/constants.dart';
 
@@ -26,6 +27,7 @@ import 'package:flutter_map/flutter_map.dart';
 
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
+import 'package:flutter_map_dragmarker/flutter_map_dragmarker.dart';
 
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 
@@ -131,13 +133,52 @@ class _HomePageState extends State<HomePage>
   late List<Ruta> _rutasCargadas = [];
   Ruta? selectedRuta;
 
+  int totalRutas = 0;
+
+  LatLng? _puntoOrigen;
+  LatLng? _puntoDestino;
+
+  LatLng? _puntoOrigenLast;
+  LatLng? _puntoDestinoLast;
+
+  String? _direccionOrigenLast;
+  String? _direccionDestinoLast;
+
   @override
   void initState() {
     super.initState();
 
     _tabController = TabController(length: 2, vsync: this);
-    _tabController.addListener(() {
+    _tabController.addListener(() async {
       if (mounted) {
+        if (_tabController.index == 0) {
+          _cargarTracking();
+          setState(() {
+            _puntoOrigen = null;
+            _puntoDestino = null;
+            ubicacion1Controller.clear();
+            ubicacion2Controller.clear();
+          });
+        } else {
+          _stopActualizacionPeriodica();
+          print(_puntoOrigenLast);
+          setState(() {
+            ubicaciones = [];
+            _wmsLayers = [];
+            resultados = [];
+
+            _puntoOrigen = _puntoOrigenLast;
+            _puntoDestino = _puntoDestinoLast;
+
+            if (_direccionOrigenLast != null) {
+              ubicacion1Controller.text = _direccionOrigenLast!;
+            }
+
+            if (_direccionDestinoLast != null) {
+              ubicacion2Controller.text = _direccionDestinoLast!;
+            }
+          });
+        }
         setState(() {});
       }
     });
@@ -390,10 +431,18 @@ class _HomePageState extends State<HomePage>
   }
 
   void _iniciarActualizacionPeriodica() {
-    // Actualiza tracking cada 15 minutos
+    if (_timer?.isActive ?? false) return;
+
     _timer = Timer.periodic(const Duration(seconds: 15), (timer) {
       _cargarTracking();
     });
+  }
+
+  void _stopActualizacionPeriodica() {
+    if (_timer != null) {
+      _timer!.cancel();
+      _timer = null; // opcional pero recomendable
+    }
   }
 
   Future<void> _iniciarUbicacion() async {
@@ -454,7 +503,7 @@ class _HomePageState extends State<HomePage>
 
       await _cargarTracking();
 
-      _iniciarActualizacionPeriodica();
+      //_iniciarActualizacionPeriodica();
     } catch (e) {
       print('Error al buscar: $e');
     }
@@ -463,6 +512,9 @@ class _HomePageState extends State<HomePage>
   Future<void> _cargarTracking() async {
     try {
       final data = await DatabaseHelper.instance.getRutasSaveInDatabase();
+
+      totalRutas = data.length;
+
       final Set<String> wmsLayersSet = {};
 
       final mapped =
@@ -561,6 +613,10 @@ class _HomePageState extends State<HomePage>
       _wmsColores.forEach((key, value) {
         print("$key  ->  $value");
       });
+
+      if (totalRutas != 0) {
+        _iniciarActualizacionPeriodica();
+      }
     } catch (e) {
       print('Error al obtener tracking: $e');
     }
@@ -725,6 +781,39 @@ class _HomePageState extends State<HomePage>
                 },
               ),
             ),
+        DragMarkers(
+          markers: [
+            if (_puntoOrigen != null)
+              DragMarker(
+                point: _puntoOrigen!,
+                size: const Size(80, 80), // ⬅️ Aquí en vez de width/height
+                builder: (context, point, isDragging) => const Icon(
+                  Icons.location_on,
+                  color: Colors.green,
+                  size: 40,
+                ),
+                onDragEnd: (details, newPoint) {
+                  setState(() => _puntoOrigen = newPoint);
+                  _actualizarDireccionDesdeMapa(newPoint, ubicacion1Controller);
+                },
+              ),
+
+            if (_puntoDestino != null)
+              DragMarker(
+                point: _puntoDestino!,
+                size: const Size(80, 80),
+                builder: (context, point, isDragging) => const Icon(
+                  Icons.location_on,
+                  color: Colors.purple,
+                  size: 40,
+                ),
+                onDragEnd: (details, newPoint) {
+                  setState(() => _puntoDestino = newPoint);
+                  _actualizarDireccionDesdeMapa(newPoint, ubicacion2Controller);
+                },
+              ),
+          ],
+        ),
         MarkerLayer(markers: allMarkers),
       ],
     );
@@ -1009,7 +1098,43 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  Widget _buildFormRutaPoint() {
+  Future<void> _actualizarDireccionDesdeMapa(
+    LatLng punto,
+    TextEditingController controller,
+  ) async {
+    // Aquí llamas tu API para obtener la dirección
+    /*final direccion = await api.getReverseGeocode(
+      punto.latitude,
+      punto.longitude,
+    );
+
+    setState(() {
+      controller.text = direccion ?? "Dirección desconocida";
+    });*/
+
+    try {
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        punto.latitude,
+        punto.longitude,
+      );
+
+      if (placemarks.isNotEmpty) {
+        final place = placemarks.first;
+
+        final direccion = "${place.street} ${place.locality}, ${place.country}";
+
+        setState(() {
+          controller.text = direccion;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        controller.text = "Dirección no encontrada";
+      });
+    }
+  }
+
+  /*Widget _buildFormRutaPoint() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
       child: Form(
@@ -1028,7 +1153,7 @@ class _HomePageState extends State<HomePage>
                 focusNode: focusNode,
                 decoration: const InputDecoration(
                   labelText: "¿Dónde tomarás la ruta?",
-                  prefixIcon: Icon(Icons.alt_route),
+                  prefixIcon: Icon(Icons.location_on, color: Colors.green),
                   border: OutlineInputBorder(),
                 ),
                 validator: (value) =>
@@ -1050,6 +1175,19 @@ class _HomePageState extends State<HomePage>
                 // Puedes guardar lat y long donde quieras:
                 print("Latitud: ${selected.latitud}");
                 print("Longitud: ${selected.longitud}");
+
+                setState(() {
+                  _puntoOrigen = LatLng(
+                    double.parse(selected.latitud!),
+                    double.parse(selected.longitud!),
+                  );
+                  _puntoOrigenLast = _puntoOrigen;
+
+                  _direccionOrigenLast = selected.direccion;
+                });
+
+                // Centramos el mapa en el punto
+                _mapController.move(_puntoOrigen!, 16);
               },
             ),
 
@@ -1066,7 +1204,7 @@ class _HomePageState extends State<HomePage>
                 focusNode: focusNode,
                 decoration: const InputDecoration(
                   labelText: "¿Dónde iras?",
-                  prefixIcon: Icon(Icons.alt_route),
+                  prefixIcon: Icon(Icons.location_on, color: Colors.purple),
                   border: OutlineInputBorder(),
                 ),
                 validator: (value) =>
@@ -1088,6 +1226,142 @@ class _HomePageState extends State<HomePage>
                 // Puedes guardar lat y long donde quieras:
                 print("Latitud: ${selected.latitud}");
                 print("Longitud: ${selected.longitud}");
+                setState(() {
+                  _puntoDestino = LatLng(
+                    double.parse(selected.latitud!),
+                    double.parse(selected.longitud!),
+                  );
+
+                  _puntoDestinoLast = _puntoDestino;
+
+                  _direccionDestinoLast = selected.direccion;
+                });
+
+                _mapController.move(_puntoDestino!, 16);
+              },
+            ),
+
+            const SizedBox(height: 30),
+
+            RoundedButton(
+              text: 'Buscar',
+              textColor: Colors.black,
+              heightButton: 40,
+              widthButton: 200,
+              colors: const [AppColors.primary, AppColors.primary],
+              onTap: _validarFormularioPuntos,
+            ),
+          ],
+        ),
+      ),
+    );
+  }*/
+
+  Widget _buildFormRutaPoint() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+      child: Form(
+        key: _formKeyPoint,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ------------------------------ ORIGEN ------------------------------
+            TypeAheadField<Direccion>(
+              controller: ubicacion1Controller,
+              suggestionsCallback: (pattern) async {
+                if (pattern.isEmpty) return [];
+                return await api.getAddressPoint(pattern.toLowerCase());
+              },
+              builder: (context, controller, focusNode) => TextFormField(
+                controller: controller,
+                focusNode: focusNode,
+                decoration: InputDecoration(
+                  labelText: "¿Dónde tomarás la ruta?",
+                  prefixIcon: const Icon(
+                    Icons.location_on,
+                    color: Colors.green,
+                  ),
+                  border: const OutlineInputBorder(),
+                  focusedBorder: const OutlineInputBorder(
+                    borderSide: BorderSide(color: Colors.green, width: 2),
+                  ),
+                  enabledBorder: const OutlineInputBorder(
+                    borderSide: BorderSide(color: Colors.green),
+                  ),
+                ),
+                validator: (value) =>
+                    value == null || value.isEmpty ? "Campo requerido" : null,
+              ),
+              itemBuilder: (context, Direccion suggestion) {
+                return ListTile(
+                  leading: const Icon(Icons.place, color: Colors.green),
+                  title: Text(suggestion.direccion ?? ''),
+                );
+              },
+              onSelected: (Direccion selected) async {
+                ubicacion1Controller.text = selected.direccion ?? "";
+
+                setState(() {
+                  _puntoOrigen = LatLng(
+                    double.parse(selected.latitud!),
+                    double.parse(selected.longitud!),
+                  );
+                  _puntoOrigenLast = _puntoOrigen;
+                  _direccionOrigenLast = selected.direccion;
+                });
+
+                _mapController.move(_puntoOrigen!, 16);
+              },
+            ),
+
+            const SizedBox(height: 30),
+
+            // ------------------------------ DESTINO ------------------------------
+            TypeAheadField<Direccion>(
+              controller: ubicacion2Controller,
+              suggestionsCallback: (pattern) async {
+                if (pattern.isEmpty) return [];
+                return await api.getAddressPoint(pattern.toLowerCase());
+              },
+              builder: (context, controller, focusNode) => TextFormField(
+                controller: controller,
+                focusNode: focusNode,
+                decoration: InputDecoration(
+                  labelText: "¿Dónde irás?",
+                  prefixIcon: const Icon(
+                    Icons.location_on,
+                    color: Colors.purple,
+                  ),
+                  border: const OutlineInputBorder(),
+                  focusedBorder: const OutlineInputBorder(
+                    borderSide: BorderSide(color: Colors.purple, width: 2),
+                  ),
+                  enabledBorder: const OutlineInputBorder(
+                    borderSide: BorderSide(color: Colors.purple),
+                  ),
+                ),
+                validator: (value) =>
+                    value == null || value.isEmpty ? "Campo requerido" : null,
+              ),
+              itemBuilder: (context, Direccion suggestion) {
+                return ListTile(
+                  leading: const Icon(Icons.place, color: Colors.purple),
+                  title: Text(suggestion.direccion ?? ''),
+                );
+              },
+              onSelected: (Direccion selected) async {
+                ubicacion2Controller.text = selected.direccion ?? "";
+
+                setState(() {
+                  _puntoDestino = LatLng(
+                    double.parse(selected.latitud!),
+                    double.parse(selected.longitud!),
+                  );
+                  _puntoDestinoLast = _puntoDestino;
+                  _direccionDestinoLast = selected.direccion;
+                });
+
+                _mapController.move(_puntoDestino!, 16);
               },
             ),
 

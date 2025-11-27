@@ -76,12 +76,14 @@ dependencies:
   google_mobile_ads: ^6.0.0
   flutter_localization: ^0.3.3
   flutter_launcher_icons: ^0.14.4
+  flutter_map_dragmarker: ^8.0.3
 
 
   #web_socket_channel: ^3.0.3
   permission_handler: ^12.0.1
   #flutter_sound: ^9.28.0
   provider: ^6.1.5+1
+  geocoding: ^4.0.0
   #flutter_webrtc: ^1.2.1
   
 
