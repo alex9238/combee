@@ -144,6 +144,9 @@ class _HomePageState extends State<HomePage>
   String? _direccionOrigenLast;
   String? _direccionDestinoLast;
 
+  Timer? _debounceOrigen;
+  Timer? _debounceDestino;
+
   @override
   void initState() {
     super.initState();
@@ -151,7 +154,7 @@ class _HomePageState extends State<HomePage>
     _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(() async {
       if (mounted) {
-        if (_tabController.index == 0) {
+        /*if (_tabController.index == 0) {
           _cargarTracking();
           setState(() {
             _puntoOrigen = null;
@@ -178,7 +181,7 @@ class _HomePageState extends State<HomePage>
               ubicacion2Controller.text = _direccionDestinoLast!;
             }
           });
-        }
+        }*/
         setState(() {});
       }
     });
@@ -198,6 +201,41 @@ class _HomePageState extends State<HomePage>
     //_iniciarActualizacionPeriodica();
 
     initConfig();
+  }
+
+  void _handleTabChange(int index) async {
+    if (!mounted) return;
+
+    if (index == 0) {
+      // Volver al tab de Tracking
+      _cargarTracking(); // async, pero no da problemas
+      setState(() {
+        _puntoOrigen = null;
+        _puntoDestino = null;
+        ubicacion1Controller.clear();
+        ubicacion2Controller.clear();
+      });
+    } else {
+      // Entrar al tab de Buscar
+      _stopActualizacionPeriodica();
+
+      setState(() {
+        ubicaciones = [];
+        _wmsLayers = [];
+        resultados = [];
+
+        _puntoOrigen = _puntoOrigenLast;
+        _puntoDestino = _puntoDestinoLast;
+
+        if (_direccionOrigenLast != null) {
+          ubicacion1Controller.text = _direccionOrigenLast!;
+        }
+
+        if (_direccionDestinoLast != null) {
+          ubicacion2Controller.text = _direccionDestinoLast!;
+        }
+      });
+    }
   }
 
   void initConfig() async {
@@ -426,6 +464,8 @@ class _HomePageState extends State<HomePage>
   @override
   void dispose() {
     _timer?.cancel();
+    _debounceOrigen?.cancel();
+    _debounceDestino?.cancel();
     _posicionSub?.cancel();
     super.dispose();
   }
@@ -752,6 +792,46 @@ class _HomePageState extends State<HomePage>
       options: MapOptions(
         initialCenter: const LatLng(19.4326, -99.1332),
         initialZoom: 10,
+        onTap: (_, latlng) async {
+          if (_tabController.index != 1) return;
+
+          // ----- LÓGICA PARA AGREGAR MARCADORES -----
+
+          final tieneOrigen = _puntoOrigen != null;
+          final tieneDestino = _puntoDestino != null;
+
+          if (!tieneOrigen) {
+            // Primer clic → ORIGEN
+            setState(() => _puntoOrigen = latlng);
+
+            _puntoOrigenLast = _puntoOrigen;
+
+            await _actualizarDireccionDesdeMapa(latlng, ubicacion1Controller);
+
+            _puntoOrigenLast = _puntoOrigen;
+            _direccionOrigenLast = ubicacion1Controller.text;
+            return;
+          }
+
+          if (!tieneDestino) {
+            // Segundo clic → DESTINO
+            setState(() => _puntoDestino = latlng);
+
+            _puntoDestinoLast = _puntoDestino;
+
+            _actualizarDireccionDesdeMapa(latlng, ubicacion2Controller);
+
+            _puntoDestinoLast = _puntoDestino;
+            _direccionDestinoLast = ubicacion2Controller.text;
+            return;
+          }
+
+          // Si ya hay 2 → mover DESTINO
+          setState(() => _puntoDestino = latlng);
+          await _actualizarDireccionDesdeMapa(latlng, ubicacion2Controller);
+          _puntoDestinoLast = _puntoDestino;
+          _direccionDestinoLast = ubicacion2Controller.text;
+        },
       ),
       children: [
         TileLayer(urlTemplate: layer1, userAgentPackageName: 'com.combee.mx'),
@@ -792,9 +872,15 @@ class _HomePageState extends State<HomePage>
                   color: Colors.green,
                   size: 40,
                 ),
-                onDragEnd: (details, newPoint) {
+                onDragEnd: (details, newPoint) async {
                   setState(() => _puntoOrigen = newPoint);
-                  _actualizarDireccionDesdeMapa(newPoint, ubicacion1Controller);
+                  await _actualizarDireccionDesdeMapa(
+                    newPoint,
+                    ubicacion1Controller,
+                  );
+
+                  _puntoOrigenLast = _puntoOrigen;
+                  _direccionOrigenLast = ubicacion1Controller.text;
                 },
               ),
 
@@ -807,9 +893,15 @@ class _HomePageState extends State<HomePage>
                   color: Colors.purple,
                   size: 40,
                 ),
-                onDragEnd: (details, newPoint) {
+                onDragEnd: (details, newPoint) async {
                   setState(() => _puntoDestino = newPoint);
-                  _actualizarDireccionDesdeMapa(newPoint, ubicacion2Controller);
+                  await _actualizarDireccionDesdeMapa(
+                    newPoint,
+                    ubicacion2Controller,
+                  );
+
+                  _puntoDestinoLast = _puntoDestino;
+                  _direccionDestinoLast = ubicacion2Controller.text;
                 },
               ),
           ],
@@ -1134,132 +1226,10 @@ class _HomePageState extends State<HomePage>
     }
   }
 
-  /*Widget _buildFormRutaPoint() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
-      child: Form(
-        key: _formKeyPoint,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TypeAheadField<Direccion>(
-              controller: ubicacion1Controller,
-              suggestionsCallback: (pattern) async {
-                if (pattern.isEmpty) return [];
-                return await api.getAddressPoint(pattern.toLowerCase());
-              },
-              builder: (context, controller, focusNode) => TextFormField(
-                controller: controller,
-                focusNode: focusNode,
-                decoration: const InputDecoration(
-                  labelText: "¿Dónde tomarás la ruta?",
-                  prefixIcon: Icon(Icons.location_on, color: Colors.green),
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) =>
-                    value == null || value.isEmpty ? "Campo requerido" : null,
-              ),
-              itemBuilder: (context, Direccion suggestion) {
-                return ListTile(
-                  leading: const Icon(Icons.directions),
-                  title: Text(suggestion.direccion ?? ''),
-                  /*subtitle: Text(
-                    "Lat: ${suggestion.latitud}, Lon: ${suggestion.longitud}",
-                  ),*/
-                );
-              },
-              onSelected: (Direccion selected) async {
-                // Rellenar el TextField con la dirección seleccionada
-                ubicacion1Controller.text = selected.direccion ?? "";
-
-                // Puedes guardar lat y long donde quieras:
-                print("Latitud: ${selected.latitud}");
-                print("Longitud: ${selected.longitud}");
-
-                setState(() {
-                  _puntoOrigen = LatLng(
-                    double.parse(selected.latitud!),
-                    double.parse(selected.longitud!),
-                  );
-                  _puntoOrigenLast = _puntoOrigen;
-
-                  _direccionOrigenLast = selected.direccion;
-                });
-
-                // Centramos el mapa en el punto
-                _mapController.move(_puntoOrigen!, 16);
-              },
-            ),
-
-            const SizedBox(height: 30),
-
-            TypeAheadField<Direccion>(
-              controller: ubicacion2Controller,
-              suggestionsCallback: (pattern) async {
-                if (pattern.isEmpty) return [];
-                return await api.getAddressPoint(pattern.toLowerCase());
-              },
-              builder: (context, controller, focusNode) => TextFormField(
-                controller: controller,
-                focusNode: focusNode,
-                decoration: const InputDecoration(
-                  labelText: "¿Dónde iras?",
-                  prefixIcon: Icon(Icons.location_on, color: Colors.purple),
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) =>
-                    value == null || value.isEmpty ? "Campo requerido" : null,
-              ),
-              itemBuilder: (context, Direccion suggestion) {
-                return ListTile(
-                  leading: const Icon(Icons.directions),
-                  title: Text(suggestion.direccion ?? ''),
-                  /*subtitle: Text(
-                    "Lat: ${suggestion.latitud}, Lon: ${suggestion.longitud}",
-                  ),*/
-                );
-              },
-              onSelected: (Direccion selected) async {
-                // Rellenar el TextField con la dirección seleccionada
-                ubicacion2Controller.text = selected.direccion ?? "";
-
-                // Puedes guardar lat y long donde quieras:
-                print("Latitud: ${selected.latitud}");
-                print("Longitud: ${selected.longitud}");
-                setState(() {
-                  _puntoDestino = LatLng(
-                    double.parse(selected.latitud!),
-                    double.parse(selected.longitud!),
-                  );
-
-                  _puntoDestinoLast = _puntoDestino;
-
-                  _direccionDestinoLast = selected.direccion;
-                });
-
-                _mapController.move(_puntoDestino!, 16);
-              },
-            ),
-
-            const SizedBox(height: 30),
-
-            RoundedButton(
-              text: 'Buscar',
-              textColor: Colors.black,
-              heightButton: 40,
-              widthButton: 200,
-              colors: const [AppColors.primary, AppColors.primary],
-              onTap: _validarFormularioPuntos,
-            ),
-          ],
-        ),
-      ),
-    );
-  }*/
-
   Widget _buildFormRutaPoint() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+
       child: Form(
         key: _formKeyPoint,
         child: Column(
@@ -1270,27 +1240,33 @@ class _HomePageState extends State<HomePage>
               controller: ubicacion1Controller,
               suggestionsCallback: (pattern) async {
                 if (pattern.isEmpty) return [];
-                return await api.getAddressPoint(pattern.toLowerCase());
+
+                // ---- DEBOUNCE ----
+                if (_debounceOrigen?.isActive ?? false)
+                  _debounceOrigen!.cancel();
+
+                final completer = Completer<List<Direccion>>();
+
+                _debounceOrigen = Timer(
+                  const Duration(milliseconds: 500),
+                  () async {
+                    final result = await api.getAddressPoint(
+                      pattern.toLowerCase(),
+                    );
+                    completer.complete(result);
+                  },
+                );
+
+                return completer.future;
               },
               builder: (context, controller, focusNode) => TextFormField(
                 controller: controller,
                 focusNode: focusNode,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: "¿Dónde tomarás la ruta?",
-                  prefixIcon: const Icon(
-                    Icons.location_on,
-                    color: Colors.green,
-                  ),
-                  border: const OutlineInputBorder(),
-                  focusedBorder: const OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.green, width: 2),
-                  ),
-                  enabledBorder: const OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.green),
-                  ),
+                  prefixIcon: Icon(Icons.location_on, color: Colors.green),
+                  border: OutlineInputBorder(),
                 ),
-                validator: (value) =>
-                    value == null || value.isEmpty ? "Campo requerido" : null,
               ),
               itemBuilder: (context, Direccion suggestion) {
                 return ListTile(
@@ -1298,9 +1274,8 @@ class _HomePageState extends State<HomePage>
                   title: Text(suggestion.direccion ?? ''),
                 );
               },
-              onSelected: (Direccion selected) async {
+              onSelected: (Direccion selected) {
                 ubicacion1Controller.text = selected.direccion ?? "";
-
                 setState(() {
                   _puntoOrigen = LatLng(
                     double.parse(selected.latitud!),
@@ -1309,7 +1284,6 @@ class _HomePageState extends State<HomePage>
                   _puntoOrigenLast = _puntoOrigen;
                   _direccionOrigenLast = selected.direccion;
                 });
-
                 _mapController.move(_puntoOrigen!, 16);
               },
             ),
@@ -1321,7 +1295,24 @@ class _HomePageState extends State<HomePage>
               controller: ubicacion2Controller,
               suggestionsCallback: (pattern) async {
                 if (pattern.isEmpty) return [];
-                return await api.getAddressPoint(pattern.toLowerCase());
+
+                // ---- DEBOUNCE ----
+                if (_debounceDestino?.isActive ?? false)
+                  _debounceDestino!.cancel();
+
+                final completer = Completer<List<Direccion>>();
+
+                _debounceDestino = Timer(
+                  const Duration(milliseconds: 500),
+                  () async {
+                    final result = await api.getAddressPoint(
+                      pattern.toLowerCase(),
+                    );
+                    completer.complete(result);
+                  },
+                );
+
+                return completer.future;
               },
               builder: (context, controller, focusNode) => TextFormField(
                 controller: controller,
@@ -1508,14 +1499,18 @@ class _HomePageState extends State<HomePage>
                                     TabBar(
                                       controller: _tabController,
                                       labelColor: Colors.black,
+                                      onTap: (index) {
+                                        _handleTabChange(index);
+                                      },
                                       unselectedLabelColor: Colors.grey,
                                       tabs: [
                                         Tab(text: "Rutas"),
-                                        Tab(text: "Búsqueda por puntos"),
+                                        Tab(text: "¿A dónde vas?"),
                                       ],
                                     ),
                                     SizedBox(
                                       height: 350,
+
                                       child: TabBarView(
                                         controller: _tabController,
                                         children: [
