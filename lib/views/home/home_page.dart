@@ -725,6 +725,78 @@ class _HomePageState extends State<HomePage>
     );
   }*/
 
+  Widget _buildCheckboxTrazo(
+    TrazoRuta trazo,
+    int index,
+    void Function(void Function()) setStateModal,
+  ) {
+    return Card(
+      child: CheckboxListTile(
+        title: Text("Trazo ${index + 1}"),
+        subtitle: Text("Capas: ${trazo.wms!.join(", ")}"),
+        value: trazo.checkboxActivo,
+        onChanged: (value) {
+          trazo.checkboxActivo = value ?? false;
+
+          // Cambiar todas las capas del trazo
+          for (final capa in trazo.wms!) {
+            _wmsSeleccionadas[capa] = trazo.checkboxActivo;
+          }
+
+          // Sincronizar trazos con capas
+          _actualizarCheckboxTrazos();
+
+          // refrescar pantalla principal + modal
+          setState(() {});
+          setStateModal(() {});
+        },
+      ),
+    );
+  }
+
+  void _actualizarCheckboxTrazos() {
+    for (final trazo in _trazos) {
+      trazo.checkboxActivo = trazo.wms!.every(
+        (capa) => _wmsSeleccionadas[capa] == true,
+      );
+    }
+  }
+
+  void _mostrarSeleccionRutas() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) {
+        return StatefulBuilder(
+          builder: (context, setStateModal) {
+            return Container(
+              padding: const EdgeInsets.all(16),
+              height: MediaQuery.of(context).size.height * 0.7,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Selecciona los trazos",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
+                  const SizedBox(height: 10),
+
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: _trazos.length,
+                      itemBuilder: (_, i) =>
+                          _buildCheckboxTrazo(_trazos[i], i, setStateModal),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+  /*
   void _mostrarSeleccionRutas() {
     showModalBottomSheet(
       context: context,
@@ -761,6 +833,8 @@ class _HomePageState extends State<HomePage>
 
                         final distancia =
                             double.tryParse(trazo.distancia ?? "0") ?? 0;
+                        print("key");
+                        print(key);
 
                         return CheckboxListTile(
                           value: _wmsSeleccionadas[key] ?? false,
@@ -819,7 +893,7 @@ class _HomePageState extends State<HomePage>
         );
       },
     );
-  }
+  }*/
 
   Widget _buildColorBox(Color? color) {
     return Container(
@@ -1590,7 +1664,7 @@ class _HomePageState extends State<HomePage>
     }
   }
 
-  void _validarFormularioPuntos() async {
+  /*void _validarFormularioPuntos() async {
     final formPoint = _formKeyPoint.currentState!;
 
     if (formPoint.validate()) {
@@ -1626,8 +1700,9 @@ class _HomePageState extends State<HomePage>
           _wmsSeleccionadas[capa] = false;
         }
       }
-
+      print("#############################################");
       print(_wmsSeleccionadas);
+      print("#############################################");
 
       // obtener capas únicas
       final Set<String> capas = {};
@@ -1652,6 +1727,66 @@ class _HomePageState extends State<HomePage>
         context,
       ).showSnackBar(const SnackBar(content: Text("Formulario válido ✅")));
     }
+  }*/
+
+  void _validarFormularioPuntos() async {
+    final formPoint = _formKeyPoint.currentState!;
+
+    if (!formPoint.validate()) return;
+
+    // Guardar lugares
+    await DatabaseHelper.instance.insertLugar(
+      lugar: ubicacion1Controller.text,
+      latitud: _puntoOrigen!.latitude.toString(),
+      longitud: _puntoOrigen!.longitude.toString(),
+    );
+
+    await DatabaseHelper.instance.insertLugar(
+      lugar: ubicacion2Controller.text,
+      latitud: _puntoDestino!.latitude.toString(),
+      longitud: _puntoDestino!.longitude.toString(),
+    );
+
+    // Obtener trazos desde API
+    final trazoList = await api.getRouteTrace(
+      _puntoOrigen!.latitude,
+      _puntoOrigen!.longitude,
+      _puntoDestino!.latitude,
+      _puntoDestino!.longitude,
+    );
+
+    // Reset
+    _wmsLayers.clear();
+    _wmsSeleccionadas.clear();
+    _wmsColores.clear();
+    _trazos = trazoList;
+
+    // 1️⃣ Obtener capas únicas
+    final Set<String> capasSet = {};
+    for (final trazo in _trazos) {
+      if (trazo.wms != null) {
+        capasSet.addAll(trazo.wms!);
+      }
+    }
+
+    _wmsLayers = capasSet.toList();
+
+    // 2️⃣ Inicializar selección en FALSE (como pediste)
+    for (final capa in _wmsLayers) {
+      _wmsSeleccionadas[capa] = false;
+    }
+
+    // 3️⃣ Asignar colores
+    _asignarColoresWMS();
+
+    setState(() {});
+
+    // 4️⃣ Abrir modal
+    _mostrarSeleccionRutas();
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("Formulario válido ✅")));
   }
 
   @override
