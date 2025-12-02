@@ -49,6 +49,17 @@ class DatabaseHelper {
         
       )
     ''');
+
+    await db.execute('''
+      CREATE TABLE lugares (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        lugar TEXT,
+        latitud TEXT,
+        longitud TEXT,
+        dateRecord DATETIME
+        
+      )
+    ''');
   }
 
   /*
@@ -178,6 +189,66 @@ class DatabaseHelper {
       where: 'idestado = ? and idmunicipio=? and ruta=? ',
       whereArgs: [estado, municipio, ruta],
     );
+  }
+
+  /*
+
+      CRUD INSERTAR LUGARES
+  */
+
+  Future<void> insertLugar({
+    required String lugar,
+    required String latitud,
+    required String longitud,
+  }) async {
+    final db = await instance.database;
+
+    final existing = await db.query(
+      'lugares',
+      where: 'lugar = ? and latitud=? and longitud=? ',
+      whereArgs: [lugar, latitud, longitud],
+    );
+
+    if (existing.isEmpty) {
+      await db.insert('lugares', {
+        'lugar': lugar,
+        'latitud': latitud,
+        'longitud': longitud,
+        'dateRecord': DateTime.now().toIso8601String(),
+      });
+    } else {
+      await db.update(
+        'lugares',
+        {'dateRecord': DateTime.now().toIso8601String()},
+        where: 'lugar = ? and latitud=? and longitud=? ',
+        whereArgs: [lugar, latitud, longitud],
+      );
+    }
+  }
+
+  Future<void> deleteLugares() async {
+    final db = await instance.database;
+    await db.delete('lugares');
+  }
+
+  Future<List<Map<String, dynamic>>> getLugaresQuery(String query) async {
+    final db = await instance.database;
+
+    final words = query.split(' ').where((w) => w.isNotEmpty).toList();
+
+    final whereClauses = List.filled(words.length, "lugar LIKE ?");
+    final where = whereClauses.join(" AND ");
+    final args = words.map((w) => "%$w%").toList();
+
+    final result = await db.query(
+      'lugares',
+      distinct: true,
+      where: where,
+      whereArgs: args,
+      orderBy: 'dateRecord DESC',
+    );
+
+    return result;
   }
 
   Future close() async {

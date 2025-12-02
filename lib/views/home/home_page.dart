@@ -9,6 +9,7 @@ import 'package:combee/model/direccion.dart';
 import 'package:combee/model/ruta.dart';
 import 'package:combee/model/rutachecador.dart';
 import 'package:combee/model/trackingrutaunidad.dart';
+import 'package:combee/model/trazorutar.dart';
 import 'package:combee/views/home/components/hex_button.dart';
 import 'package:combee/views/home/components/rounded_button.dart';
 import 'package:flutter/material.dart';
@@ -146,6 +147,8 @@ class _HomePageState extends State<HomePage>
 
   Timer? _debounceOrigen;
   Timer? _debounceDestino;
+
+  List<TrazoRuta> _trazos = [];
 
   @override
   void initState() {
@@ -662,7 +665,7 @@ class _HomePageState extends State<HomePage>
     }
   }
 
-  void _mostrarSeleccionRutas() {
+  /*void _mostrarSeleccionRutas() {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -719,6 +722,115 @@ class _HomePageState extends State<HomePage>
           },
         );
       },
+    );
+  }*/
+
+  void _mostrarSeleccionRutas() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateModal) {
+            return Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    "Rutas disponibles",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+
+                  const Divider(),
+
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: _trazos.length,
+                      itemBuilder: (context, index) {
+                        final trazo = _trazos[index];
+
+                        final wms1 = trazo.wms![0];
+                        final wms2 = trazo.wms!.length > 1
+                            ? trazo.wms![1]
+                            : null;
+
+                        final String key = trazo.wms!.join("_");
+
+                        final distancia =
+                            double.tryParse(trazo.distancia ?? "0") ?? 0;
+
+                        return CheckboxListTile(
+                          value: _wmsSeleccionadas[key] ?? false,
+                          onChanged: (value) {
+                            setStateModal(() {
+                              // Activa/desactiva cada capa que compone la ruta
+                              for (final capa in trazo.wms!) {
+                                _wmsSeleccionadas[capa] = value ?? false;
+                              }
+                            });
+
+                            // refrescar mapa
+                            setState(() {});
+                          },
+
+                          title: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  _buildColorBox(_wmsColores[wms1]),
+                                  Text(
+                                    trazo.ruta1 ?? "",
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+
+                                  const SizedBox(width: 8),
+
+                                  Text("(${distancia.toStringAsFixed(1)} km)"),
+                                ],
+                              ),
+
+                              if (wms2 != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Row(
+                                    children: [
+                                      _buildColorBox(_wmsColores[wms2]),
+                                      Text(
+                                        trazo.ruta2 ?? "",
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildColorBox(Color? color) {
+    return Container(
+      width: 16,
+      height: 16,
+      margin: const EdgeInsets.only(right: 8),
+      decoration: BoxDecoration(
+        color: color ?? Colors.grey,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Colors.black26),
+      ),
     );
   }
 
@@ -1238,7 +1350,7 @@ class _HomePageState extends State<HomePage>
             // ------------------------------ ORIGEN ------------------------------
             TypeAheadField<Direccion>(
               controller: ubicacion1Controller,
-              suggestionsCallback: (pattern) async {
+              /*suggestionsCallback: (pattern) async {
                 if (pattern.isEmpty) return [];
 
                 // ---- DEBOUNCE ----
@@ -1254,6 +1366,46 @@ class _HomePageState extends State<HomePage>
                       pattern.toLowerCase(),
                     );
                     completer.complete(result);
+                  },
+                );
+
+                return completer.future;
+              },*/
+              suggestionsCallback: (pattern) async {
+                if (pattern.isEmpty) return [];
+
+                // ---- DEBOUNCE ----
+                if (_debounceOrigen?.isActive ?? false)
+                  _debounceOrigen!.cancel();
+
+                final completer = Completer<List<Direccion>>();
+
+                _debounceOrigen = Timer(
+                  const Duration(milliseconds: 500),
+                  () async {
+                    // 1️⃣ Buscar primero en BD local
+                    final locales = await DatabaseHelper.instance
+                        .getLugaresQuery(pattern.toLowerCase());
+
+                    if (locales.isNotEmpty) {
+                      // Mapeas a tu modelo Direccion
+                      final direccionesLocales = locales.map((m) {
+                        return Direccion(
+                          direccion: m['lugar'],
+                          latitud: m['latitud'],
+                          longitud: m['longitud'],
+                        );
+                      }).toList();
+
+                      completer.complete(direccionesLocales);
+                      return;
+                    }
+
+                    // 2️⃣ Si no hay resultados locales → consulta API
+                    final remotos = await api.getAddressPoint(
+                      pattern.toLowerCase(),
+                    );
+                    completer.complete(remotos);
                   },
                 );
 
@@ -1293,7 +1445,7 @@ class _HomePageState extends State<HomePage>
             // ------------------------------ DESTINO ------------------------------
             TypeAheadField<Direccion>(
               controller: ubicacion2Controller,
-              suggestionsCallback: (pattern) async {
+              /*suggestionsCallback: (pattern) async {
                 if (pattern.isEmpty) return [];
 
                 // ---- DEBOUNCE ----
@@ -1313,7 +1465,46 @@ class _HomePageState extends State<HomePage>
                 );
 
                 return completer.future;
+              },*/
+              suggestionsCallback: (pattern) async {
+                if (pattern.isEmpty) return [];
+
+                if (_debounceDestino?.isActive ?? false)
+                  _debounceDestino!.cancel();
+
+                final completer = Completer<List<Direccion>>();
+
+                _debounceDestino = Timer(
+                  const Duration(milliseconds: 500),
+                  () async {
+                    // Primero BD local
+                    final locales = await DatabaseHelper.instance
+                        .getLugaresQuery(pattern.toLowerCase());
+
+                    if (locales.isNotEmpty) {
+                      final direccionesLocales = locales.map((m) {
+                        return Direccion(
+                          direccion: m['lugar'],
+                          latitud: m['latitud'],
+                          longitud: m['longitud'],
+                        );
+                      }).toList();
+
+                      completer.complete(direccionesLocales);
+                      return;
+                    }
+
+                    // Luego API remota
+                    final remotos = await api.getAddressPoint(
+                      pattern.toLowerCase(),
+                    );
+                    completer.complete(remotos);
+                  },
+                );
+
+                return completer.future;
               },
+
               builder: (context, controller, focusNode) => TextFormField(
                 controller: controller,
                 focusNode: focusNode,
@@ -1399,10 +1590,64 @@ class _HomePageState extends State<HomePage>
     }
   }
 
-  void _validarFormularioPuntos() {
+  void _validarFormularioPuntos() async {
     final formPoint = _formKeyPoint.currentState!;
 
     if (formPoint.validate()) {
+      // insertamos origen
+      await DatabaseHelper.instance.insertLugar(
+        lugar: ubicacion1Controller.text,
+        latitud: _puntoOrigen!.latitude.toString(),
+        longitud: _puntoOrigen!.longitude.toString(),
+      );
+
+      await DatabaseHelper.instance.insertLugar(
+        lugar: ubicacion2Controller.text,
+        latitud: _puntoDestino!.latitude.toString(),
+        longitud: _puntoDestino!.longitude.toString(),
+      );
+
+      final trazoList = await api.getRouteTrace(
+        _puntoOrigen!.latitude,
+        _puntoOrigen!.longitude,
+        _puntoDestino!.latitude,
+        _puntoDestino!.longitude,
+      );
+
+      _wmsLayers.clear();
+      _wmsSeleccionadas.clear();
+      _wmsColores.clear();
+
+      _trazos = trazoList;
+
+      // --- 🔥 Inicializar selecciones en false ---
+      for (final trazo in _trazos) {
+        for (final capa in trazo.wms!) {
+          _wmsSeleccionadas[capa] = false;
+        }
+      }
+
+      print(_wmsSeleccionadas);
+
+      // obtener capas únicas
+      final Set<String> capas = {};
+      for (final trazo in _trazos) {
+        if (trazo.wms != null) {
+          capas.addAll(trazo.wms!);
+        }
+      }
+
+      _wmsLayers = capas.toList();
+
+      // asignar colores
+      _asignarColoresWMS();
+
+      // refrescar UI
+      setState(() {});
+
+      // mostrar modal
+      _mostrarSeleccionRutas();
+
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text("Formulario válido ✅")));

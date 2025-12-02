@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:combee/model/direccion.dart';
 import 'package:combee/model/ruta.dart';
 import 'package:combee/model/rutaunidaddetalle.dart';
+import 'package:combee/model/trazorutar.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:combee/model/estadomunicipio.dart';
@@ -317,6 +318,56 @@ class AccountLocation {
         final res = ApiResponse<Direccion>.fromJson(
           json,
           (j) => Direccion.fromJson(j),
+        );
+
+        if (res.message == 1) {
+          return res.data;
+        }
+      }
+    } catch (e) {
+      print("aqui ente");
+      print(e);
+    }
+    return [];
+  }
+
+  Future<List<TrazoRuta>> getRouteTrace(
+    double latitud_1,
+    double longitud_1,
+    double latitud_2,
+    double longitud_2,
+  ) async {
+    try {
+      debugPrint("Trazo buscando ");
+
+      print(
+        jsonEncode({
+          "latitud_1": latitud_1,
+          "longitud_1": longitud_1,
+          "latitud_2": latitud_2,
+          "longitud_2": longitud_2,
+        }),
+      );
+      var url = Uri.parse("$urlEndpoint/routes/maps");
+      final http.Response response = await http.post(
+        url,
+        body: jsonEncode({
+          "latitud_1": latitud_1,
+          "longitud_1": longitud_1,
+          "latitud_2": latitud_2,
+          "longitud_2": longitud_2,
+        }),
+        headers: {"Content-Type": "application/json"},
+      );
+      debugPrint("#### Trazo ");
+      debugPrint("${response.statusCode}");
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+
+        final res = ApiResponse<TrazoRuta>.fromJson(
+          json,
+          (j) => TrazoRuta.fromJson(j),
         );
 
         if (res.message == 1) {
