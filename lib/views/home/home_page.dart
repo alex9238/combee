@@ -10,12 +10,10 @@ import 'package:combee/model/ruta.dart';
 import 'package:combee/model/rutachecador.dart';
 import 'package:combee/model/trackingrutaunidad.dart';
 import 'package:combee/model/trazorutar.dart';
-import 'package:combee/views/home/components/hex_button.dart';
 import 'package:combee/views/home/components/rounded_button.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-
 import 'package:combee/views/configuration/configuration_page.dart';
 import 'package:select2dot1/select2dot1.dart';
 
@@ -39,8 +37,7 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage>
-    with SingleTickerProviderStateMixin {
+class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   final MapController _mapController = MapController();
   String layer1 = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
@@ -57,19 +54,9 @@ class _HomePageState extends State<HomePage>
 
   Map<String, bool> _wmsSeleccionadas = {};
   Map<String, Color> _wmsColores = {};
-  /*final List<Color> _coloresDisponibles = [
-    Colors.brown,
-    Colors.green,
-    Colors.teal,
-    Colors.purple,
-    Colors.teal,
-    Colors.black,
-    Colors.deepPurpleAccent,
-  ];*/
 
-  // Reemplaza tu lista de colores disponibles con una más amplia
   final List<Color> _coloresDisponibles = [
-    Colors.red,
+    Colors.brown,
     Colors.blue,
     Colors.green,
     Colors.orange,
@@ -150,9 +137,24 @@ class _HomePageState extends State<HomePage>
 
   List<TrazoRuta> _trazos = [];
 
+  LatLng? _puntoOrigenQuery;
+  LatLng? _puntoDestinoQuery;
+
+  late AnimationController _rippleController;
+  late Animation<double> _rippleAnimation;
+
   @override
   void initState() {
     super.initState();
+
+    _rippleController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat();
+
+    _rippleAnimation = Tween<double>(begin: 0.6, end: 1.4).animate(
+      CurvedAnimation(parent: _rippleController, curve: Curves.easeOut),
+    );
 
     _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(() async {
@@ -210,6 +212,11 @@ class _HomePageState extends State<HomePage>
     if (!mounted) return;
 
     if (index == 0) {
+      ubicaciones = [];
+      _wmsLayers = [];
+      _wmsSeleccionadas = {};
+      resultados = [];
+
       // Volver al tab de Tracking
       _cargarTracking(); // async, pero no da problemas
       setState(() {
@@ -225,6 +232,7 @@ class _HomePageState extends State<HomePage>
       setState(() {
         ubicaciones = [];
         _wmsLayers = [];
+        _wmsSeleccionadas = {};
         resultados = [];
 
         _puntoOrigen = _puntoOrigenLast;
@@ -466,6 +474,7 @@ class _HomePageState extends State<HomePage>
 
   @override
   void dispose() {
+    _rippleController.dispose();
     _timer?.cancel();
     _debounceOrigen?.cancel();
     _debounceDestino?.cancel();
@@ -665,101 +674,59 @@ class _HomePageState extends State<HomePage>
     }
   }
 
-  /*void _mostrarSeleccionRutas() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateModal) {
-            return Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    "Rutas",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const Divider(),
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: _wmsLayers.length,
-                      itemBuilder: (context, index) {
-                        final layer = _wmsLayers[index];
-                        return CheckboxListTile(
-                          title: Row(
-                            children: [
-                              Container(
-                                width: 16,
-                                height: 16,
-                                margin: const EdgeInsets.only(right: 8),
-                                decoration: BoxDecoration(
-                                  color: _wmsColores[layer],
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(color: Colors.black26),
-                                ),
-                              ),
-                              Text("Ruta ${layer.split(':').last}"),
-                            ],
-                          ),
-                          value: _wmsSeleccionadas[layer] ?? false,
-                          onChanged: (value) {
-                            setStateModal(() {
-                              _wmsSeleccionadas[layer] = value ?? false;
-                            });
-                            setState(() {}); // actualiza el mapa
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }*/
-
   Widget _buildCheckboxTrazo(
     TrazoRuta trazo,
     int index,
     void Function(void Function()) setStateModal,
   ) {
+    final wms1 = trazo.wms![0];
+    final wms2 = trazo.wms!.length > 1 ? trazo.wms![1] : null;
+
+    final distancia = double.tryParse(trazo.distancia ?? "0") ?? 0;
+
     return Card(
       child: CheckboxListTile(
-        title: Text("Trazo ${index + 1}"),
-        subtitle: Text("Capas: ${trazo.wms!.join(", ")}"),
+        //title: Text("Trazo ${index + 1}"),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                _buildColorBox(_wmsColores[wms1]),
+                Text(trazo.ruta1 ?? "", style: const TextStyle(fontSize: 14)),
+
+                const SizedBox(width: 8),
+
+                Text("(${distancia.toStringAsFixed(1)} mts)"),
+              ],
+            ),
+
+            if (wms2 != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Row(
+                  children: [
+                    _buildColorBox(_wmsColores[wms2]),
+                    Text(
+                      trazo.ruta2 ?? "",
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
         value: trazo.checkboxActivo,
         onChanged: (value) {
           trazo.checkboxActivo = value ?? false;
 
-          // Cambiar todas las capas del trazo
-          for (final capa in trazo.wms!) {
-            _wmsSeleccionadas[capa] = trazo.checkboxActivo;
-          }
+          _recalcularCapasDesdeTrazos();
 
-          // Sincronizar trazos con capas
-          _actualizarCheckboxTrazos();
-
-          // refrescar pantalla principal + modal
           setState(() {});
           setStateModal(() {});
         },
       ),
     );
-  }
-
-  void _actualizarCheckboxTrazos() {
-    for (final trazo in _trazos) {
-      trazo.checkboxActivo = trazo.wms!.every(
-        (capa) => _wmsSeleccionadas[capa] == true,
-      );
-    }
   }
 
   void _mostrarSeleccionRutas() {
@@ -776,7 +743,7 @@ class _HomePageState extends State<HomePage>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    "Selecciona los trazos",
+                    "Selecciona ",
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                   ),
                   const SizedBox(height: 10),
@@ -796,104 +763,6 @@ class _HomePageState extends State<HomePage>
       },
     );
   }
-  /*
-  void _mostrarSeleccionRutas() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateModal) {
-            return Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    "Rutas disponibles",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-
-                  const Divider(),
-
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: _trazos.length,
-                      itemBuilder: (context, index) {
-                        final trazo = _trazos[index];
-
-                        final wms1 = trazo.wms![0];
-                        final wms2 = trazo.wms!.length > 1
-                            ? trazo.wms![1]
-                            : null;
-
-                        final String key = trazo.wms!.join("_");
-
-                        final distancia =
-                            double.tryParse(trazo.distancia ?? "0") ?? 0;
-                        print("key");
-                        print(key);
-
-                        return CheckboxListTile(
-                          value: _wmsSeleccionadas[key] ?? false,
-                          onChanged: (value) {
-                            setStateModal(() {
-                              // Activa/desactiva cada capa que compone la ruta
-                              for (final capa in trazo.wms!) {
-                                _wmsSeleccionadas[capa] = value ?? false;
-                              }
-                            });
-
-                            // refrescar mapa
-                            setState(() {});
-                          },
-
-                          title: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  _buildColorBox(_wmsColores[wms1]),
-                                  Text(
-                                    trazo.ruta1 ?? "",
-                                    style: const TextStyle(fontSize: 14),
-                                  ),
-
-                                  const SizedBox(width: 8),
-
-                                  Text("(${distancia.toStringAsFixed(1)} km)"),
-                                ],
-                              ),
-
-                              if (wms2 != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Row(
-                                    children: [
-                                      _buildColorBox(_wmsColores[wms2]),
-                                      Text(
-                                        trazo.ruta2 ?? "",
-                                        style: const TextStyle(fontSize: 14),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }*/
 
   Widget _buildColorBox(Color? color) {
     return Container(
@@ -931,7 +800,8 @@ class _HomePageState extends State<HomePage>
               unidad.longitud!.isNotEmpty,
         )
         .map(
-          (unidad) => Marker(
+          (unidad) => /*Marker(
+            rotate: false,
             point: LatLng(
               double.parse(unidad.latitud!),
               double.parse(unidad.longitud!),
@@ -951,6 +821,53 @@ class _HomePageState extends State<HomePage>
                 ),
               ],
             ),
+          ),*/ Marker(
+            rotate: true,
+            point: LatLng(
+              double.parse(unidad.latitud!),
+              double.parse(unidad.longitud!),
+            ),
+            width: 120,
+            height: 120,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Popup blanco
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  margin: const EdgeInsets.only(bottom: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(6),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 4,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    unidad.ruta ?? "",
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
+                ),
+
+                // Icono del marker
+                Icon(
+                  Icons.directions_bus,
+                  color: unidad.activo! ? Colors.blue : Colors.red,
+                  size: 35,
+                ),
+              ],
+            ),
           ),
         )
         .toList();
@@ -961,13 +878,53 @@ class _HomePageState extends State<HomePage>
     if (_miUbicacion != null) {
       allMarkers.add(
         Marker(
+          rotate: true,
           point: _miUbicacion!,
-          width: 60,
-          height: 60,
-          child: const Icon(
-            Icons.person_pin_circle,
-            color: Color.fromARGB(255, 0, 156, 151),
-            size: 40,
+          width: 140,
+          height: 140,
+          child: AnimatedBuilder(
+            animation: _rippleAnimation,
+            builder: (context, child) {
+              double scale = _rippleAnimation.value;
+              double opacity = (1.4 - scale).clamp(0.0, 1.0);
+
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Onda tipo ripple (ondas que crecen y desaparecen)
+                  Transform.scale(
+                    scale: scale,
+                    child: Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(
+                          0xFF009C97,
+                        ).withOpacity(0.25 * opacity),
+                      ),
+                    ),
+                  ),
+
+                  // Círculo central estático
+                  Container(
+                    width: 55,
+                    height: 55,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF009C97).withOpacity(0.4),
+                    ),
+                  ),
+
+                  // Icono del usuario
+                  const Icon(
+                    Icons.person_pin_circle,
+                    color: Color(0xFF009C97),
+                    size: 40,
+                  ),
+                ],
+              );
+            },
           ),
         ),
       );
@@ -1051,6 +1008,7 @@ class _HomePageState extends State<HomePage>
           markers: [
             if (_puntoOrigen != null)
               DragMarker(
+                rotateMarker: true,
                 point: _puntoOrigen!,
                 size: const Size(80, 80), // ⬅️ Aquí en vez de width/height
                 builder: (context, point, isDragging) => const Icon(
@@ -1072,6 +1030,7 @@ class _HomePageState extends State<HomePage>
 
             if (_puntoDestino != null)
               DragMarker(
+                rotateMarker: true,
                 point: _puntoDestino!,
                 size: const Size(80, 80),
                 builder: (context, point, isDragging) => const Icon(
@@ -1664,75 +1623,18 @@ class _HomePageState extends State<HomePage>
     }
   }
 
-  /*void _validarFormularioPuntos() async {
-    final formPoint = _formKeyPoint.currentState!;
-
-    if (formPoint.validate()) {
-      // insertamos origen
-      await DatabaseHelper.instance.insertLugar(
-        lugar: ubicacion1Controller.text,
-        latitud: _puntoOrigen!.latitude.toString(),
-        longitud: _puntoOrigen!.longitude.toString(),
-      );
-
-      await DatabaseHelper.instance.insertLugar(
-        lugar: ubicacion2Controller.text,
-        latitud: _puntoDestino!.latitude.toString(),
-        longitud: _puntoDestino!.longitude.toString(),
-      );
-
-      final trazoList = await api.getRouteTrace(
-        _puntoOrigen!.latitude,
-        _puntoOrigen!.longitude,
-        _puntoDestino!.latitude,
-        _puntoDestino!.longitude,
-      );
-
-      _wmsLayers.clear();
-      _wmsSeleccionadas.clear();
-      _wmsColores.clear();
-
-      _trazos = trazoList;
-
-      // --- 🔥 Inicializar selecciones en false ---
-      for (final trazo in _trazos) {
-        for (final capa in trazo.wms!) {
-          _wmsSeleccionadas[capa] = false;
-        }
-      }
-      print("#############################################");
-      print(_wmsSeleccionadas);
-      print("#############################################");
-
-      // obtener capas únicas
-      final Set<String> capas = {};
-      for (final trazo in _trazos) {
-        if (trazo.wms != null) {
-          capas.addAll(trazo.wms!);
-        }
-      }
-
-      _wmsLayers = capas.toList();
-
-      // asignar colores
-      _asignarColoresWMS();
-
-      // refrescar UI
-      setState(() {});
-
-      // mostrar modal
-      _mostrarSeleccionRutas();
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Formulario válido ✅")));
-    }
-  }*/
-
   void _validarFormularioPuntos() async {
     final formPoint = _formKeyPoint.currentState!;
 
     if (!formPoint.validate()) return;
+
+    if (_puntoOrigenQuery != null && _puntoDestinoQuery != null) {
+      if (_puntoOrigen == _puntoOrigenQuery &&
+          _puntoDestino == _puntoDestinoQuery) {
+        _mostrarSeleccionRutas();
+        return;
+      }
+    }
 
     // Guardar lugares
     await DatabaseHelper.instance.insertLugar(
@@ -1784,9 +1686,79 @@ class _HomePageState extends State<HomePage>
     // 4️⃣ Abrir modal
     _mostrarSeleccionRutas();
 
+    _puntoOrigenQuery = _puntoOrigen;
+    _puntoDestinoQuery = _puntoDestino;
+
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text("Formulario válido ✅")));
+  }
+
+  void _recalcularCapasDesdeTrazos() {
+    // reset
+    _wmsSeleccionadas.clear();
+
+    // recorrer trazos activos
+    for (final trazo in _trazos) {
+      if (trazo.checkboxActivo && trazo.wms != null) {
+        for (final capa in trazo.wms!) {
+          _wmsSeleccionadas[capa] = true;
+        }
+      }
+    }
+
+    // todas las capas no incluidas -> false
+    for (final capa in _wmsLayers) {
+      _wmsSeleccionadas.putIfAbsent(capa, () => false);
+    }
+  }
+
+  List<Map<String, dynamic>> getResultadosActivos() {
+    return resultados.where((item) {
+      final rutaNumero = item['ruta']?.toString() ?? '';
+
+      // Buscar capa WMS correspondiente
+      final String? wmsLayer = _wmsLayers.firstWhere(
+        (layer) => layer.contains(rutaNumero),
+        orElse: () => "",
+      );
+
+      if (wmsLayer!.isEmpty) return false;
+
+      // Mostrar solo capas activas
+      return _wmsSeleccionadas[wmsLayer] ?? false;
+    }).toList();
+  }
+
+  List<TrazoRuta> getTrazosActivos() {
+    print(_trazos);
+
+    return _trazos.where((trazo) {
+      if (trazo.wms == null) return false;
+
+      // una capa está activa si aparece en _wmsSeleccionadas
+      return trazo.wms!.any((capa) => _wmsSeleccionadas[capa] == true);
+    }).toList();
+  }
+
+  List<String> getCapasActivas() {
+    return _wmsSeleccionadas.entries
+        .where((e) => e.value == true)
+        .map((e) => e.key)
+        .toList();
+  }
+
+  List<Map<String, dynamic>> getRutasVisibles(
+    List<Map<String, dynamic>> resultados,
+  ) {
+    final capasActivas = getCapasActivas();
+
+    return resultados.where((item) {
+      final rutaNumero = item['ruta']?.toString() ?? '';
+      final capaRuta = "ruta_$rutaNumero"; // ← normalizamos al mismo formato
+
+      return capasActivas.contains(capaRuta);
+    }).toList();
   }
 
   @override
@@ -1845,13 +1817,15 @@ class _HomePageState extends State<HomePage>
                                   ),
                                 ),
                               ),
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.layers,
-                                  color: AppColors.greyTitle,
+
+                              if (_tabController.index == 1)
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.layers,
+                                    color: AppColors.greyTitle,
+                                  ),
+                                  onPressed: _mostrarSeleccionRutas,
                                 ),
-                                onPressed: _mostrarSeleccionRutas,
-                              ),
 
                               // << ESTE ES EL BOTÓN PARA MOSTRAR/OCULTAR >>
                               IconButton(
@@ -1982,6 +1956,92 @@ class _HomePageState extends State<HomePage>
                                 );
                               },
                             ),
+                          );
+                        },
+                      ),
+
+                      if (_showLeft)
+                        Positioned(
+                          left: 0,
+                          top: 0,
+                          bottom: 0,
+                          child: _flechaIzquierda(),
+                        ),
+
+                      if (_showRight)
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          bottom: 0,
+                          child: _flechaDerecha(),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+
+            if (_tabController.index == 1)
+              AnimatedPositioned(
+                duration: Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+                top: 30 + cardHeight + 20,
+                left: 0,
+                right: 0,
+                child: SizedBox(
+                  height: 65,
+                  child: Stack(
+                    children: [
+                      Builder(
+                        builder: (_) {
+                          final capasActivas = getCapasActivas();
+
+                          if (capasActivas.isEmpty) {
+                            return const Center(
+                              child: Text(
+                                "No hay rutas activas",
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            );
+                          }
+
+                          return ListView.builder(
+                            controller: _scrollController,
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(horizontal: 40),
+                            itemCount: capasActivas.length,
+                            itemBuilder: (_, index) {
+                              final capa = capasActivas[index];
+
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 10),
+                                child: InputChip(
+                                  label: Row(
+                                    children: [
+                                      // Circulo de color
+                                      Container(
+                                        width: 12,
+                                        height: 12,
+                                        margin: const EdgeInsets.only(right: 6),
+                                        decoration: BoxDecoration(
+                                          color:
+                                              _wmsColores[capa] ?? Colors.grey,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+
+                                      // Texto de la capa → "ruta_22" → "RUTA 22"
+                                      Text(
+                                        capa.replaceAll("ruta_", "RUTA "),
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
+                                    ],
+                                  ),
+                                  backgroundColor: Colors.white,
+                                  elevation: 3,
+                                  onPressed: () {},
+                                ),
+                              );
+                            },
                           );
                         },
                       ),
