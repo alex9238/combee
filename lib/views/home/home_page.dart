@@ -427,14 +427,24 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     _rutasCargadas = rutas;
 
-    final items = rutas
+    /*final items = rutas
         .map(
           (m) => SingleItemCategoryModel(
             nameSingleItem: m.ruta ?? '',
             value: m.idruta.toString(),
           ),
         )
-        .toList();
+        .toList();*/
+
+    final items = rutas.map((m) {
+      return SingleItemCategoryModel(
+        nameSingleItem: m.ruta ?? '',
+        value: m.idruta.toString(),
+        avatarSingleItem: m.verificada == 1
+            ? const Icon(Icons.verified, color: Colors.green, size: 20)
+            : null,
+      );
+    }).toList();
 
     // Si ya tenemos un idMunicipio detectado, lo preseleccionamos
     SingleItemCategoryModel? selectedRutaItem;
